@@ -22,7 +22,7 @@ const Home = () => {
   }
   const gotoAppointments=()=>{
     router.push({
-      pathname:"/bookapointment",
+      pathname:"/appointments",
       params:{uid:uid}
     });//temporarily for testing
   }
