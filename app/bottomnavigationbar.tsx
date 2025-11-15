@@ -33,13 +33,16 @@ const gotomypets=()=>{
   }
   const gotoAppointments=()=>{
     router.push({
-      pathname:"/bookapointment",
+      pathname:"/appointments",
       params:{uid:uid}
     });//temporarily for testing
   }
   
   const gotoHome=()=>{
-    router.push("/home")
+    router.push({
+      pathname:"/home",
+      params:{uid:uid}
+    })
   }
 
   const gotoImageChecker=()=>{

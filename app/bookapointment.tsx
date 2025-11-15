@@ -7,7 +7,7 @@ import DateTimePicker, {
 import { db } from "@/src/config/firebase";
 import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams } from "expo-router";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
   Keyboard,
@@ -26,11 +26,28 @@ const Bookapointment = () => {
   const [selectedpet, setselectedpet] = useState("");
   const[vets,setvets]=useState([])
   const [selectedvet,setselectedvet]=useState("")
-
+  
   const [date, setDate] = useState(new Date());
   const [mode, setMode] = useState<'date' | 'time'>('date');
   const [show, setShow] = useState(false);
 
+
+  const scheduleappointment=async()=>{
+    try{
+      await addDoc(collection(db,"appointments"),{
+        userId:uid,
+        petname:selectedpet,
+        vetname:selectedvet,
+        date:date.toLocaleDateString(),
+        time:date.toLocaleTimeString(),
+        stattus:false
+      });
+      alert("Appointment added")
+    }
+    catch(err){
+      console.log(err)
+    }
+  }
 
   const fetchPets = async () => {
     try {
@@ -179,8 +196,10 @@ const Bookapointment = () => {
                 </View>
 
                 <View style={{marginTop:20}}>
+                  
                   <Button style={{backgroundColor:"lightblue" } }
-                   labelStyle={{fontWeight:"bold", fontSize:17, color:"black"}}>Schedule</Button>
+                   labelStyle={{fontWeight:"bold", fontSize:17, color:"black"}}
+                   onPress={scheduleappointment}>Schedule</Button>
                 </View>
                   {show && (
         <DateTimePicker

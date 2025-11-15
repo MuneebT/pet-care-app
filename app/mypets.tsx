@@ -32,6 +32,9 @@ const Mypets = () => {
     });
   };
 
+  const gotoReminders=()=>{
+    router.push("/reminders")
+  }
   const fetchPets = async () => {
     if (!uid) {
       console.warn("⚠️ No UID found in route params!");
@@ -207,6 +210,7 @@ const Mypets = () => {
                       mode="contained"
                       style={{ marginTop: 10, backgroundColor: "#b3e5fc", width: 200 }}
                       labelStyle={{ color: "black", fontWeight: "bold" }}
+                      onPress={gotoReminders}
                     >
                       Reminders
                     </Button>
