@@ -1,8 +1,9 @@
-import { auth } from '@/src/config/firebase';
+import { auth, db } from '@/src/config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
 import { FirebaseError } from 'firebase/app';
 import { signInWithEmailAndPassword } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
   Image,
@@ -17,15 +18,33 @@ import {
 import { Button } from 'react-native-paper';
 
 const Login = () => {
-  const [email, setemail] = useState("");
-  const [password, setpassword] = useState("");
-  const router = useRouter(); // ✅ FIXED: proper router hook
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const router = useRouter();
 
-  const gotosignin = () => {
+  const gotoSignup = () => {
     router.push("/signup");
   };
 
-  const checkemptyfields = () => {
+  // Fetch role directly and return it
+  const getRole = async (uid: string): Promise<string | null> => {
+    try {
+      const ref = doc(db, 'users', uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        return snap.data().role as string;
+      } else {
+        console.log("No such user document exists");
+        return null;
+      }
+    } catch (err) {
+      console.log("Error fetching role:", err);
+      return null;
+    }
+  };
+
+  const checkEmptyFields = () => {
     if (!email.trim() || !password.trim()) {
       alert("Don't leave empty fields");
       return false;
@@ -33,22 +52,34 @@ const Login = () => {
     return true;
   };
 
-  const verifyemailpassword = async () => {
+  const verifyEmailPassword = async () => {
     try {
-      if (!checkemptyfields()) return;
+      if (!checkEmptyFields()) return;
 
+      // Sign in
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       alert("Login Successful");
       console.log("User logged in:", user.uid);
 
-      await AsyncStorage.setItem("uid",user.uid);
-      // ✅ Navigate to /home with UID param
-      router.push({
-        pathname: "/home",
-        params: { uid: user.uid },
-      });
+      await AsyncStorage.setItem("uid", user.uid);
+
+      // Fetch role immediately
+      const userRole = await getRole(user.uid);
+
+      if (!userRole) {
+        alert("Unable to fetch user role");
+        return;
+      }
+
+      // Redirect based on role
+      if (userRole === "petowner") {
+        router.push({ pathname: "/home", params: { uid: user.uid } });
+      } else {
+        router.push({ pathname: "/vets/home", params: { uid: user.uid } });// for testing purpose added hme we will add a credentials screen here
+      }
+
     } catch (err) {
       console.log("Login Error:", err);
       const error = err instanceof FirebaseError ? err : (err as any);
@@ -91,7 +122,7 @@ const Login = () => {
               height: 40, width: 270, fontWeight: 'bold', fontSize: 18, marginTop: 20,
               backgroundColor: "white", borderRadius: 7
             }}
-            onChangeText={setemail}
+            onChangeText={setEmail}
           />
           <TextInput
             placeholder='Password'
@@ -100,10 +131,10 @@ const Login = () => {
               backgroundColor: "white", borderRadius: 7
             }}
             secureTextEntry
-            onChangeText={setpassword}
+            onChangeText={setPassword}
           />
           <Button
-            onPress={verifyemailpassword}
+            onPress={verifyEmailPassword}
             style={{ height: 40, width: 270, backgroundColor: "white", borderRadius: 7, marginTop: 20 }}
             labelStyle={{ fontSize: 18, fontWeight: 'bold', color: "orange" }}
           >
@@ -115,7 +146,7 @@ const Login = () => {
           </Text>
 
           <Button
-            onPress={gotosignin}
+            onPress={gotoSignup}
             style={{ height: 40, width: 270, backgroundColor: "white", borderRadius: 7, marginTop: 20 }}
             labelStyle={{ fontSize: 18, fontWeight: 'bold', color: "orange" }}
           >

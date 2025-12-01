@@ -3,9 +3,9 @@ import { Picker } from "@react-native-picker/picker";
 import { router, useLocalSearchParams } from "expo-router";
 import { addDoc, collection } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
-import { Alert, ScrollView, Text, TextInput } from "react-native";
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableWithoutFeedback, View } from "react-native";
 import { Button } from "react-native-paper";
-
+import BottomNavigationBar from "./bottomnavigationbar";
 const MyPetRecords = () => {
   const { uid } = useLocalSearchParams(); // ✅ get uid from navigation params
   const [name, setName] = useState("");
@@ -50,6 +50,12 @@ const MyPetRecords = () => {
   };
 
   return (
+    <KeyboardAvoidingView 
+          style={{ flex: 1, backgroundColor: "orange" }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}>
+            <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+
+      <View style={{flex:1}}>
     <ScrollView style={{ flex: 1, backgroundColor: "orange", padding: 20 }}>
       <Text style={{ fontSize: 28, fontWeight: "bold", color: "white", marginVertical: 20 }}>
         Add Pet Record
@@ -105,6 +111,12 @@ const MyPetRecords = () => {
         Save Pet
       </Button>
     </ScrollView>
+    <View style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <BottomNavigationBar />
+          </View>
+    </View>
+    </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 

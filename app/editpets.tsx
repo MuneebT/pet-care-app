@@ -2,9 +2,10 @@ import { db } from '@/src/config/firebase';
 import { router, useLocalSearchParams } from 'expo-router';
 import { doc, updateDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
-import { Alert, ScrollView, Text, TextInput } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableWithoutFeedback, View } from 'react-native';
 import { Button } from 'react-native-paper';
 
+import BottomNavigationBar from './bottomnavigationbar';
 const EditPet = () => {
   // ✅ Extract params and safely typecast them as strings
   const params = useLocalSearchParams();
@@ -49,6 +50,11 @@ const EditPet = () => {
   };
 
   return (
+    <KeyboardAvoidingView 
+          style={{ flex: 1, backgroundColor: "orange" }}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <View style={{flex:1}}>
     <ScrollView
       style={{ flex: 1, backgroundColor: 'orange', padding: 20 }}
       contentContainerStyle={{ alignItems: 'center' }}
@@ -128,6 +134,12 @@ const EditPet = () => {
         Save Changes
       </Button>
     </ScrollView>
+    <View style={{ position: "absolute", bottom: 0, left: 0, right: 0 }}>
+            <BottomNavigationBar />
+          </View>
+    </View>
+    </TouchableWithoutFeedback>
+    </KeyboardAvoidingView>
   );
 };
 
