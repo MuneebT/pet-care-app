@@ -1,8 +1,20 @@
-import { db } from "@/src/config/firebase";
-import { collection, DocumentData, getDocs } from "firebase/firestore";
+import { auth, db } from "@/src/config/firebase";
+import { router, useLocalSearchParams } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
+import {
+  collection,
+  doc,
+  DocumentData,
+  getDoc,
+  getDocs,
+  query,
+  where
+} from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   ListRenderItem,
   Platform,
@@ -10,161 +22,290 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  TouchableWithoutFeedback,
+  View
 } from "react-native";
+import { Button, useTheme } from "react-native-paper";
 import BottomNavigationBar from "./bottomnavigationbar";
 
-interface Appointment {
+interface Reminder {
   id: string;
   userId: string;
-  petname: string;
-  vetname: string;
-  date: string; 
+  petId: string;
+  vetId: string;
+  petName: string;
+  vetName: string;
+  date: Date;
   time: string;
-  stattus: boolean; // TRUE = confirmed
+  status: 'pending' | 'confirmed' | 'cancelled';
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const RemindersScreen: React.FC = () => {
-  const [reminders, setReminders] = useState<Appointment[]>([]);
+  const { uid } = useLocalSearchParams<{ uid: string }>();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [filter, setFilter] = useState<"upcoming" | "past">("upcoming");
-  const [filteredReminders, setFilteredReminders] = useState<Appointment[]>([]);
+  const [filteredReminders, setFilteredReminders] = useState<Reminder[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const theme = useTheme();
 
-  // Fetch only confirmed appointments
-  const getConfirmedAppointments = async () => {
+  // Format date to readable string
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  };
+
+  // Get current user on component mount
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+      if (user) {
+        await fetchReminders(user.uid);
+      } else {
+        router.replace('/login');
+      }
+      setIsLoading(false);
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const fetchReminders = async (userId: string) => {
     try {
-      const querySnapshot = await getDocs(collection(db, "appointments"));
-      const dataList: Appointment[] = querySnapshot.docs
-        .map((doc) => {
-          const data = doc.data() as DocumentData;
-          return {
-            id: doc.id,
-            userId: data.userId ?? "",
-            petname: data.petname ?? "Unknown Pet",
-            vetname: data.vetname ?? "Unknown Vet",
-            date: data.date ?? "",
-            time: data.time ?? "",
-            stattus: data.stattus ?? false,
-          };
-        })
-        .filter((item) => item.stattus === true); // 👈 Only confirmed appointments
+      setIsLoading(true);
+      setError(null);
+      
+      // Query appointments for the current user that are confirmed
+      const appointmentsRef = collection(db, "appointments");
+      const q = query(
+        appointmentsRef, 
+        where("userId", "==", userId),
+        where("status", "==", "confirmed")
+      );
+      
+      const querySnapshot = await getDocs(q);
+      
+      if (querySnapshot.empty) {
+        setReminders([]);
+        setFilteredReminders([]);
+        return;
+      }
 
-      setReminders(dataList);
+      const remindersData: Reminder[] = [];
+      
+      // Process each reminder
+      for (const docSnapshot of querySnapshot.docs) {
+        const data = docSnapshot.data() as DocumentData;
+        const reminderDate = data.date?.toDate() || new Date();
+        
+        const reminder: Reminder = {
+          id: docSnapshot.id,
+          userId: data.userId,
+          petId: data.petId,
+          vetId: data.vetId,
+          petName: 'Loading...',
+          vetName: 'Loading...',
+          date: reminderDate,
+          time: data.time || '12:00 PM',
+          status: data.status || 'confirmed',
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+        };
+
+        // Fetch pet details
+        try {
+          if (data.petId) {
+            const petDoc = await getDoc(doc(db, "users", userId, "pets", data.petId));
+            if (petDoc.exists()) {
+              const petData = petDoc.data() as { name?: string };
+              reminder.petName = petData.name || 'Unknown Pet';
+            }
+          }
+        } catch (petError) {
+          console.error('Error fetching pet:', petError);
+          reminder.petName = 'Pet not found';
+        }
+
+        // Fetch vet details
+        try {
+          if (data.vetId) {
+            const vetDoc = await getDoc(doc(db, "vets", data.vetId));
+            if (vetDoc.exists()) {
+              const vetData = vetDoc.data() as { name?: string };
+              reminder.vetName = vetData.name || 'Unknown Vet';
+            }
+          }
+        } catch (vetError) {
+          console.error('Error fetching vet:', vetError);
+          reminder.vetName = 'Vet not found';
+        }
+
+        remindersData.push(reminder);
+      }
+
+      // Sort by date (newest first)
+      const sortedReminders = [...remindersData].sort(
+        (a, b) => a.date.getTime() - b.date.getTime()
+      );
+      
+      setReminders(sortedReminders);
+      filterReminders(sortedReminders);
     } catch (error) {
-      console.error("Error fetching reminders:", error);
+      console.error('Error fetching reminders:', error);
+      setError('Failed to load reminders. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    getConfirmedAppointments();
-  }, []);
-
-  useEffect(() => {
-    filterReminders();
-  }, [reminders, filter]);
-
-  const filterReminders = () => {
-    const today = new Date();
-    const filtered = reminders.filter((item) => {
-      const appointmentDate = new Date(item.date);
-      return filter === "upcoming"
-        ? appointmentDate >= today
-        : appointmentDate < today;
+  // Filter reminders based on selected filter
+  const filterReminders = (remindersList = reminders) => {
+    if (remindersList.length === 0) {
+      setFilteredReminders([]);
+      return;
+    }
+    
+    const now = new Date();
+    const filtered = remindersList.filter(reminder => {
+      return filter === 'upcoming' 
+        ? reminder.date >= now 
+        : reminder.date < now;
     });
+    
     setFilteredReminders(filtered);
   };
 
-  const renderItem: ListRenderItem<Appointment> = ({ item }) => {
+  useEffect(() => {
+    filterReminders();
+  }, [filter]);
+
+  const renderItem: ListRenderItem<Reminder> = ({ item }) => {
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
-          <Text style={styles.petName}>{item.petname}</Text>
-          <View style={[styles.statusBadge]}>
+          <Text style={styles.petName}>{item.petName}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: '#B2F0C0' }]}>
             <Text style={styles.statusText}>Reminder</Text>
           </View>
         </View>
 
-        <Text style={styles.vetName}>Vet: {item.vetname}</Text>
+        <Text style={styles.vetName}>Vet: {item.vetName}</Text>
         <Text style={styles.dateText}>
-          {item.date} at {item.time}
+          {formatDate(item.date)} at {item.time}
         </Text>
       </View>
     );
   };
 
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <Button 
+          mode="contained" 
+          onPress={() => currentUser && fetchReminders(currentUser.uid)}
+          style={styles.retryButton}
+        >
+          Retry
+        </Button>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "orange" }}
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: 10,
-            paddingTop: 40,
-            paddingBottom: 100,
-          }}
-        >
-          <Text style={styles.title}>Reminders</Text>
-
-          {/* Toggle */}
-          <View style={styles.filterContainer}>
-            <View style={styles.filterBackground}>
-              <TouchableOpacity
-                style={[
-                  styles.filterButton,
-                  filter === "upcoming" && styles.activeFilterButton,
-                ]}
-                onPress={() => setFilter("upcoming")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    filter === "upcoming" && styles.activeFilterText,
-                  ]}
-                >
-                  Upcoming
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterButton,
-                  filter === "past" && styles.activeFilterButton,
-                ]}
-                onPress={() => setFilter("past")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    filter === "past" && styles.activeFilterText,
-                  ]}
-                >
-                  Past
-                </Text>
-              </TouchableOpacity>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <View style={styles.innerContainer}>
+          <ScrollView contentContainerStyle={styles.scrollViewContent}>
+            <View style={styles.header}>
+              <Text style={styles.title}>Reminders</Text>
             </View>
+
+            <View style={styles.filterContainer}>
+              <View style={styles.filterBackground}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    filter === "upcoming" && styles.activeFilterButton,
+                  ]}
+                  onPress={() => setFilter("upcoming")}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === "upcoming" && styles.activeFilterText,
+                    ]}
+                  >
+                    Upcoming
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    filter === "past" && styles.activeFilterButton,
+                  ]}
+                  onPress={() => setFilter("past")}
+                >
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === "past" && styles.activeFilterText,
+                    ]}
+                  >
+                    Past
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {filteredReminders.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>
+                  {filter === 'upcoming' 
+                    ? 'No upcoming reminders' 
+                    : 'No past reminders'}
+                </Text>
+              </View>
+            ) : (
+              <FlatList
+                data={filteredReminders}
+                renderItem={renderItem}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={{ paddingBottom: 20 }}
+              />
+            )}
+          </ScrollView>
+          
+          <View style={styles.bottomNavContainer}>
+            <BottomNavigationBar />
           </View>
-
-          {filteredReminders.length === 0 ? (
-            <Text style={{ textAlign: "center", color: "#6C4A3E", marginTop: 20 }}>
-              No reminders.
-            </Text>
-          ) : (
-            <FlatList
-              data={filteredReminders}
-              renderItem={renderItem}
-              keyExtractor={(item) => item.id}
-              scrollEnabled={false}
-              contentContainerStyle={{ paddingHorizontal: 5 }}
-            />
-          )}
-        </ScrollView>
-
-        {/* Bottom Navigation */}
-        <View style={styles.bottomNavContainer}>
-          <BottomNavigationBar />
         </View>
-      </View>
+      </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 };
@@ -172,52 +313,96 @@ const RemindersScreen: React.FC = () => {
 export default RemindersScreen;
 
 const styles = StyleSheet.create({
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#5B4034",
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  innerContainer: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    padding: 16,
+    paddingBottom: 100,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 20,
   },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#5B4034',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    color: 'red',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 10,
+  },
   filterContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
+    flexDirection: 'row',
+    justifyContent: 'center',
     marginBottom: 20,
   },
   filterBackground: {
-    flexDirection: "row",
-    backgroundColor: "white",
+    flexDirection: 'row',
+    backgroundColor: '#f0f0f0',
     borderRadius: 30,
-    padding: 5,
+    padding: 4,
   },
   filterButton: {
     paddingVertical: 8,
     paddingHorizontal: 25,
-    borderRadius: 30,
+    borderRadius: 25,
+    alignItems: 'center',
   },
   activeFilterButton: {
-    backgroundColor: "#5B4034",
+    backgroundColor: 'white',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
   },
   filterText: {
-    fontWeight: "bold",
-    color: "#5B4034",
+    color: '#666',
+    fontWeight: '500',
   },
   activeFilterText: {
-    color: "white",
+    color: '#007AFF',
+    fontWeight: '600',
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   card: {
-    backgroundColor: "white",
-    borderRadius: 15,
-    padding: 15,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 15,
-    shadowColor: "#000",
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
     elevation: 3,
-  },
-  headerRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
   },
   petName: {
     fontSize: 20,
@@ -249,5 +434,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+  },
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 50,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });

@@ -1,81 +1,204 @@
+import { auth, db } from "@/src/config/firebase";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-
-
-import { db } from "@/src/config/firebase";
 import { Picker } from "@react-native-picker/picker";
-import { useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
+import { onAuthStateChanged, User } from "firebase/auth";
 import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableWithoutFeedback,
-  View,
+  View
 } from "react-native";
-import { Button } from "react-native-paper";
+import { Button, useTheme } from "react-native-paper";
 import BottomNavigationBar from "./bottomnavigationbar";
-const Bookapointment = () => {
-  const {uid}=useLocalSearchParams()
-  const [pets, setpets] = useState(["Kato", "Milo", "Rocky"]);
-  const [selectedpet, setselectedpet] = useState("");
-  const[vets,setvets]=useState([])
-  const [selectedvet,setselectedvet]=useState("")
-  
+
+type Pet = {
+  id: string;
+  name: string;
+  type: string;
+  breed: string;
+  age: string | number;
+  gender: string;
+  userId: string;
+  createdAt?: any; // Timestamp or Date
+  updatedAt?: any; // Timestamp or Date
+};
+
+type Vet = {
+  id: string;
+  name: string;
+  specialization: string;
+};
+
+const BookAppointment = () => {
+  const theme = useTheme();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [selectedPet, setSelectedPet] = useState("");
+  const [vets, setVets] = useState<Vet[]>([]);
+  const [selectedVet, setSelectedVet] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [date, setDate] = useState(new Date());
   const [mode, setMode] = useState<'date' | 'time'>('date');
   const [show, setShow] = useState(false);
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      try {
+        setCurrentUser(user);
+        if (user) {
+          await Promise.all([
+            fetchPets(user.uid),
+            fetchVets()
+          ]);
+        } else {
+          router.replace('/login');
+        }
+      } catch (error: any) {
+        console.error('Auth state change error:', error);
+        const errorMessage = error?.message || "An error occurred while loading the app. Please try again.";
+        Alert.alert("Error", errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
+    });
 
-  const scheduleappointment=async()=>{
-    try{
-      await addDoc(collection(db,"appointments"),{
-        userId:uid,
-        petname:selectedpet,
-        vetname:selectedvet,
-        date:date.toLocaleDateString(),
-        time:date.toLocaleTimeString(),
-        stattus:false
-      });
-      alert("Appointment added")
-    }
-    catch(err){
-      console.log(err)
-    }
-  }
+    return () => {
+      try {
+        unsubscribe();
+      } catch (error: any) {
+        console.error('Error unsubscribing from auth:', error);
+      }
+    };
+  }, []);
 
-  const fetchPets = async () => {
+  const fetchPets = async (userId: string) => {
     try {
-      if (!uid) {
-        console.warn("⚠️ No UID found in params!");
+      if (!userId) {
+        console.warn('No user ID provided to fetchPets');
         return;
       }
-
-      const petsRef = collection(db, "pets");
-      const q = query(petsRef, where("userId", "==", uid));
-      const snapshot = await getDocs(q);
-
-      const petNames = snapshot.docs.map((doc) => doc.data().name as string);
-      setpets(petNames);
-      console.log("✅ Pets fetched:", petNames);
-    } catch (error) {
-      console.error("🔥 Error fetching pets:", error);
+      
+      console.log('Fetching pets for user:', userId);
+      // Updated to query the pets subcollection under the user document
+      const userPetsRef = collection(db, "users", userId, "pets");
+      const snapshot = await getDocs(userPetsRef);
+      
+      console.log('Pets query result:', {
+        size: snapshot.size,
+        empty: snapshot.empty,
+        docs: snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      });
+      
+      if (snapshot.empty) {
+        console.log('No pets found for user:', userId);
+        setPets([]);
+        return;
+      }
+      
+      const petsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Processing pet data:', { id: doc.id, ...data });
+        return {
+          id: doc.id,
+          name: data.name || 'Unnamed Pet',
+          type: data.type || 'Pet',
+          breed: data.breed || 'Unknown Breed',
+          age: data.age || 'N/A',
+          gender: data.gender || 'Unknown',
+          ...data
+        } as Pet;
+      });
+      
+      console.log('Setting pets data:', petsData);
+      setPets(petsData);
+    } catch (error: any) {
+      console.error("Error fetching pets:", error);
+      const errorMessage = error?.code === 'permission-denied' 
+        ? "You don't have permission to view pets. Please contact support."
+        : "Failed to load pets. Please try again.";
+      Alert.alert("Error", errorMessage);
     }
   };
 
-  useEffect(() => {
-    fetchPets();
-  }, [uid]);
+  const fetchVets = async () => {
+    try {
+      const vetsRef = collection(db, "vets");
+      const q = query(vetsRef, where("status", "==", "active")); // Added status filter
+      const snapshot = await getDocs(q);
+      
+      if (snapshot.empty) {
+        console.log('No active veterinarians found');
+        setVets([]);
+        return;
+      }
+      
+      const vetsData = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || 'Veterinarian',
+          specialization: data.specialization || 'General',
+          ...data
+        } as Vet;
+      });
+      
+      setVets(vetsData);
+    } catch (error: any) {
+      console.error("Error fetching vets:", error);
+      const errorMessage = error?.code === 'permission-denied'
+        ? "You don't have permission to view veterinarians."
+        : "Failed to load veterinarians. Please try again.";
+      Alert.alert("Error", errorMessage);
+    }
+  };
 
+  const scheduleAppointment = async () => {
+    if (!currentUser || !selectedPet || !selectedVet) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
 
-   const onChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, "appointments"), {
+        userId: currentUser.uid,
+        petId: selectedPet,
+        vetId: selectedVet,
+        date: date.toISOString(),
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+      
+      Alert.alert("Success", "Appointment booked successfully!");
+      // Reset form
+      setSelectedPet("");
+      setSelectedVet("");
+      setDate(new Date());
+    } catch (err) {
+      console.error("Error scheduling appointment:", err);
+      Alert.alert("Error", "Failed to book appointment. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const onChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     if (Platform.OS === 'android') {
-      setShow(false); // close picker automatically on Android
+      setShow(false);
     }
 
     if (selectedDate) {
@@ -87,138 +210,295 @@ const Bookapointment = () => {
     setMode(type);
     setShow(true);
   };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: "orange" }}
+      style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={{flex:1}}>
-        <ScrollView
-          style={{ flex: 1, backgroundColor: "orange" }} // ensures base color fills screen
-          contentContainerStyle={{
-            flexGrow: 1, // 👈 makes scrollview fill screen height
-            justifyContent: "center",
-            alignItems: "center",
-            paddingVertical: 20,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: "white",
-              marginTop: 40,
-              width: 320,
-              marginBottom: 10,
-              alignItems: "center",
-              borderRadius: 10,
-              paddingVertical: 20,
-              elevation: 4,
-            }}
+        <View style={styles.innerContainer}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollViewContent}
+            keyboardShouldPersistTaps="handled"
           >
-            <View style={{ flexDirection: "row" }}>
-              <Text style={{ fontWeight: "bold", fontSize: 20 }}>
-                Book Appointment
-              </Text>
-              <MaterialCommunityIcons
-                name="calendar"
-                size={30}
-                color="lightblue"
-                style={{ paddingLeft: 10 }}
-              />
-            </View>
-
-            <View style={{ flexDirection: "row", marginTop: 20 }}>
-              <MaterialCommunityIcons
-                name="paw"
-                size={20}
-                color="lightblue"
-                style={{ marginTop: 10 }}
-              />
-              <Text
-                style={{
-                  fontWeight: "bold",
-                  fontSize: 15,
-                  paddingTop: 10,
-                  paddingRight: 100,
-                  paddingLeft: 5,
-                }}
-              >
-                Select Your Pet
-              </Text>
-            </View>
-
-            <Picker
-              selectedValue={selectedpet}
-              onValueChange={setselectedpet}
-              style={{
-                backgroundColor: "lightgray",
-                marginBottom: 15,
-                marginTop: 10,
-                width: 270,
-              }}
-            >
-              <Picker.Item label="Select Pet" value="" enabled={false} />
-              {pets.map((type, index) => (
-                <Picker.Item key={index} label={type} value={type} />
-              ))}
-            </Picker>
-            <View style={{flexDirection:"row", marginRight:100}}>
-                <MaterialCommunityIcons name="stethoscope" size={20} color="blue"  style={{marginTop:10}}/>
-                <Text style={{fontWeight:"bold", fontSize:15,paddingTop:10, marginLeft:5}}>Select Veterinarian</Text>
-            </View>
-              <View style={{borderRadius:10}} >
-                ,<Picker selectedValue={selectedvet} onValueChange={setselectedvet} style={{backgroundColor:"lightgray"
-                    ,marginTop:10, marginBottom:15,width:270, borderRadius:10, fontSize:20, fontWeight:"bold"}}>
-                <Picker.Item label="Select Veterinarian" value="" enabled={false}/>
-                {vets.map((vet,index)=>(
-                    <Picker.Item key={index} label={vet} value={vet}/>
-                ))}
-                </Picker>
+            <View style={styles.card}>
+              <View style={styles.header}>
+                <Text style={styles.title}>Book Appointment</Text>
+                <MaterialCommunityIcons
+                  name="calendar"
+                  size={30}
+                  color={theme.colors.primary}
+                  style={styles.headerIcon}
+                />
               </View>
 
-                <View style={{flexDirection:"column"}}>
-                  <View style={{flexDirection:"row", marginRight:150}}>
-                  <MaterialCommunityIcons name="calendar" size={20} color="blue" style={{marginTop:10}}/>
-                  <Text style={{fontWeight:"bold", fontSize:15,paddingTop:10, marginLeft:5}}>Select Date</Text>
-                  
-                  </View>
-                  <Button onPress={()=>showPicker('date')} style={{width:250, backgroundColor:"lightgray", marginTop:10}}
-                   labelStyle={{color:"black", fontWeight:"bold", fontSize:17}}>Pick a Date</Button>
+              {/* Pet Selection */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="paw"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Select Your Pet</Text>
                 </View>
-
-                <View style={{flexDirection:"column"}}>
-                  <View style={{flexDirection:"row", marginRight:130}}>
-                    <MaterialCommunityIcons name="clock" size={20} color="lightgreen" style={{marginTop:10}}/>
-                    <Text style={{fontWeight:"bold", fontSize:15,paddingTop:10, marginLeft:5}}>Select Time</Text>
-                  </View>
-                  <Button onPress={()=>showPicker('time')} style={{backgroundColor:"lightgray", marginTop:10}}
-                   labelStyle={{color:"black", fontWeight:"bold", fontSize:17}}>Pick a Time</Button>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={selectedPet}
+                    onValueChange={setSelectedPet}
+                    style={styles.picker}
+                    dropdownIconColor={theme.colors.primary}
+                  >
+                    <Picker.Item 
+                      label="Select Pet" 
+                      value="" 
+                      style={styles.pickerPlaceholder}
+                    />
+                    {pets.map((pet) => (
+                      <Picker.Item 
+                        key={pet.id} 
+                        label={pet.name} 
+                        value={pet.id} 
+                      />
+                    ))}
+                  </Picker>
                 </View>
+              </View>
 
-                <View style={{marginTop:20}}>
-                  
-                  <Button style={{backgroundColor:"lightblue" } }
-                   labelStyle={{fontWeight:"bold", fontSize:17, color:"black"}}
-                   onPress={scheduleappointment}>Schedule</Button>
+              {/* Vet Selection */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="stethoscope"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Select Veterinarian</Text>
                 </View>
-                  {show && (
-        <DateTimePicker
-          value={date}
-          mode={mode}
-          display="default"
-          onChange={onChange}
-        />
-      )}
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={selectedVet}
+                    onValueChange={setSelectedVet}
+                    style={styles.picker}
+                    dropdownIconColor={theme.colors.primary}
+                  >
+                    <Picker.Item 
+                      label="Select Veterinarian" 
+                      value="" 
+                      style={styles.pickerPlaceholder}
+                    />
+                    {vets.map((vet) => (
+                      <Picker.Item 
+                        key={vet.id} 
+                        label={`${vet.name} (${vet.specialization})`} 
+                        value={vet.id} 
+                      />
+                    ))}
+                  </Picker>
+                </View>
+              </View>
 
-          </View>
-        </ScrollView>
-        <View style={{position:"absolute", bottom:0, left:0, right:0}}>
-        <BottomNavigationBar />
-        </View>
+              {/* Date Selection */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="calendar"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Appointment Date</Text>
+                </View>
+                <Button
+                  mode="outlined"
+                  onPress={() => showPicker('date')}
+                  style={[styles.button, styles.dateTimeButton]}
+                  labelStyle={styles.buttonLabel}
+                  icon="calendar"
+                >
+                  {formatDate(date)}
+                </Button>
+              </View>
+
+              {/* Time Selection */}
+              <View style={styles.section}>
+                <View style={styles.sectionHeader}>
+                  <MaterialCommunityIcons
+                    name="clock"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.sectionTitle}>Appointment Time</Text>
+                </View>
+                <Button
+                  mode="outlined"
+                  onPress={() => showPicker('time')}
+                  style={[styles.button, styles.dateTimeButton]}
+                  labelStyle={styles.buttonLabel}
+                  icon="clock"
+                >
+                  {formatTime(date)}
+                </Button>
+              </View>
+
+              {/* Date/Time Picker */}
+              {show && (
+                <DateTimePicker
+                  value={date}
+                  mode={mode}
+                  is24Hour={true}
+                  display="default"
+                  onChange={onChange}
+                  minimumDate={new Date()}
+                />
+              )}
+
+              {/* Submit Button */}
+              <Button
+                mode="contained"
+                onPress={scheduleAppointment}
+                style={[styles.button, styles.submitButton]}
+                labelStyle={styles.submitButtonLabel}
+                loading={isSubmitting}
+                disabled={isSubmitting || !selectedPet || !selectedVet}
+                icon="calendar-check"
+              >
+                {isSubmitting ? 'Booking...' : 'Book Appointment'}
+              </Button>
+            </View>
+          </ScrollView>
+          <BottomNavigationBar />
         </View>
       </TouchableWithoutFeedback>
     </KeyboardAvoidingView>
   );
 };
 
-export default Bookapointment;
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  innerContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    padding: 16,
+    paddingBottom: 80,
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    paddingBottom: 12,
+  },
+  title: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  headerIcon: {
+    marginLeft: 10,
+  },
+  section: {
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#444',
+    marginLeft: 8,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    marginBottom: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    width: '100%',
+    backgroundColor: '#f9f9f9',
+  },
+  pickerPlaceholder: {
+    color: '#999',
+  },
+  button: {
+    marginTop: 8,
+    borderRadius: 8,
+    paddingVertical: 8,
+  },
+  buttonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dateTimeButton: {
+    borderColor: '#ddd',
+    backgroundColor: '#f9f9f9',
+    justifyContent: 'flex-start',
+    paddingLeft: 12,
+  },
+  submitButton: {
+    marginTop: 24,
+    backgroundColor: '#4CAF50',
+    paddingVertical: 10,
+  },
+  submitButtonLabel: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
+
+export default BookAppointment;
