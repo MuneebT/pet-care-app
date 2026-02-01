@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  StyleSheet,
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
@@ -17,6 +18,107 @@ import {
 } from 'react-native';
 import { Button, TextInput } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#e3f2fd',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+  },
+  scrollContent: {
+    padding: 16,
+  },
+  header: {
+    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
+  },
+  statusBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 16,
+    backgroundColor: '#FFA500',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  avatarContainer: {
+    position: 'relative',
+    marginBottom: 16,
+  },
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#e0e0e0',
+  },
+  editIcon: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 8,
+    elevation: 3,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#333',
+  },
+  card: {
+    marginBottom: 16,
+    borderRadius: 12,
+    elevation: 2,
+  },
+  input: {
+    marginBottom: 12,
+    backgroundColor: '#fff',
+  },
+  scheduleDay: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    elevation: 1,
+  },
+  timeInput: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  saveButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  actionButton: {
+    marginTop: 8,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+});
 
 type DayOfWeek =
   | 'Monday'
@@ -92,7 +194,8 @@ const MyProfile = () => {
         setClinicName(data.clinicName ?? '');
         setDegree(data.degree ?? '');
         setExperience(data.experience ?? null);
-        setImage(data.imageUri ?? null);
+        // Check multiple possible field names for the image URL
+        setImage(data.image || data.imageUrl || data.imageUri || data.photoURL || null);
         setLicenseNo(data.licenseNo ?? '');
         setName(data.name ?? '');
         setSchedule(data.schedule as WeeklySchedule);
@@ -164,27 +267,37 @@ const MyProfile = () => {
 
   if (accessDenied) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ fontSize: 20, fontWeight: 'bold', color: 'red' }}>
-          Access Denied
-        </Text>
-        <Text>Your account does not have permission to view this profile.</Text>
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, backgroundColor: '#e3f2fd' }}>
+        <View style={{ backgroundColor: 'white', padding: 20, borderRadius: 15, width: '90%', alignItems: 'center', elevation: 5 }}>
+          <MaterialCommunityIcons name="alert-circle" size={50} color="#ff5252" />
+          <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#d32f2f', marginVertical: 10 }}>
+            Access Denied
+          </Text>
+          <Text style={{ textAlign: 'center', color: '#555', fontSize: 16 }}>
+            Your account does not have permission to view this profile.
+          </Text>
+        </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: 'orange' }}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.gradientBackground} />
       <KeyboardAvoidingView
-        style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'android' ? 90 : 0}
+        style={{ flex: 1 }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <ScrollView>
-            <View style={{ alignItems: 'center', flexDirection: 'row' }}>
-              <Text style={{ fontWeight: 'bold', fontSize: 25, color: 'black' }}>My Profile</Text>
-              <Text>{status}</Text>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={{ alignItems: 'center', flexDirection: 'row', marginBottom: 15 }}>
+              <Text style={{ fontWeight: 'bold', fontSize: 28, color: '#1a237e', marginRight: 10 }}>My Profile</Text>
+              {status === 'pending' && (
+                <View style={styles.statusBadge}>
+                  <MaterialCommunityIcons name="clock-outline" size={14} color="#fff" />
+                  <Text style={styles.statusText}>Pending Approval</Text>
+                </View>
+              )}
             </View>
 
             {/* Profile Section */}
@@ -197,6 +310,9 @@ const MyProfile = () => {
                   backgroundColor: 'white',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  borderWidth: 3,
+                  borderColor: '#5c6bc0',
+                  elevation: 5,
                 }}>
                   {image ? (
                     <Image source={{ uri: image }} style={{ width: '100%', height: '100%', borderRadius: 70 }} />
@@ -220,14 +336,14 @@ const MyProfile = () => {
             </View>
 
             {/* Clinic Details */}
-            <Text style={{ fontWeight: 'bold', fontSize: 18, marginLeft: 10, marginTop: 20 }}>Clinic Details</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 20, marginLeft: 10, marginTop: 20, color: '#283593' }}>Clinic Details</Text>
             <View style={{ width: 300, marginLeft: 25, marginTop: 15 }}>
               <TextInput label="Clinic Name" value={clinicName} onChangeText={setClinicName} style={{ backgroundColor: 'white', marginVertical: 5 }} />
               <TextInput label="Clinic Address" value={clinicAddr} onChangeText={setClinicAddr} style={{ backgroundColor: 'white', marginVertical: 5 }} />
             </View>
 
             {/* Schedule */}
-            <Text style={{ fontWeight: 'bold', fontSize: 18, marginTop: 20, marginLeft: 10 }}>Weekly Schedule</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 20, marginTop: 20, marginLeft: 10, color: '#283593' }}>Weekly Schedule</Text>
             <View style={{ marginTop: 10, paddingHorizontal: 20 }}>
               {(Object.keys(schedule) as DayOfWeek[]).map(day => (
                 <View key={day} style={{ marginBottom: 15 }}>
@@ -250,20 +366,31 @@ const MyProfile = () => {
             {showPicker && <DateTimePicker value={new Date()} mode="time" onChange={onTimeSelected} />}
 
             {/* Professional Details */}
-            <Text style={{ fontWeight: 'bold', fontSize: 18, marginTop: 20, marginLeft: 20 }}>Professional Details</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 20, marginTop: 20, marginLeft: 20, color: '#283593' }}>Professional Details</Text>
             <View style={{ width: 300, marginLeft: 25 }}>
               <TextInput label="Degree" value={degree} onChangeText={setDegree} style={{ backgroundColor: 'white', marginVertical: 5 }} />
               <TextInput label="License Number" value={licenseNo} onChangeText={setLicenseNo} style={{ backgroundColor: 'white', marginVertical: 5 }} />
             </View>
 
             {/* Upload Certificate */}
-            <Text style={{ fontWeight: 'bold', fontSize: 18, marginTop: 20, marginLeft: 20 }}>Upload Certificate</Text>
+            <Text style={{ fontWeight: 'bold', fontSize: 20, marginTop: 20, marginLeft: 20, color: '#283593' }}>Upload Certificate</Text>
             <TouchableOpacity onPress={pickDocument} style={{ backgroundColor: 'white', padding: 10, borderRadius: 5 }}>
               <Text>{certificate ? certificate.name : 'Choose File'}</Text>
             </TouchableOpacity>
 
             {/* Save Schedule Button */}
-            <Button mode="contained" onPress={updateScheduleInFirestore} style={{ margin: 20, padding: 10, borderRadius: 10 }}>
+            <Button 
+              mode="contained" 
+              onPress={updateScheduleInFirestore} 
+              style={{ 
+                margin: 20, 
+                padding: 8, 
+                borderRadius: 25, 
+                backgroundColor: '#3949ab',
+                elevation: 3
+              }}
+              labelStyle={{ fontSize: 16, fontWeight: '600' }}
+            >
               Save Schedule
             </Button>
           </ScrollView>
