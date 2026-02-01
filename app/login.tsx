@@ -58,6 +58,16 @@ const Login = () => {
     return true;
   };
 
+  const checkVetCredentials = async (userId: string): Promise<boolean> => {
+    try {
+      const vetDoc = await getDoc(doc(db, 'vets', userId));
+      return vetDoc.exists();
+    } catch (error) {
+      console.error('Error checking vet credentials:', error);
+      return false;
+    }
+  };
+
   const handleLogin = async () => {
     if (!validateForm()) return;
 
@@ -85,10 +95,17 @@ const Login = () => {
         return;
       }
 
-      // 4. Navigate based on role
-      const route = userRole === 'veterinarian' ? '/vets/home' : '/home';
-      console.log('🚀 Navigating to:', route);
-      router.replace({ pathname: route, params: { userId: user.uid } });
+      // 4. For vets, check if they've completed their credentials
+      if (userRole === 'veterinarian') {
+        const hasCredentials = await checkVetCredentials(user.uid);
+        const route = hasCredentials ? '/vets/home' : '/vets/credentials';
+        console.log('🚀 Navigating to:', route);
+        router.replace({ pathname: route, params: { userId: user.uid } });
+      } else {
+        // For non-vet users, go to regular home
+        console.log('🚀 Navigating to: /home');
+        router.replace({ pathname: '/home', params: { userId: user.uid } });
+      }
       
     } catch (error: any) {
       console.error('🔥 Login error:', {

@@ -135,22 +135,51 @@ const BookAppointment = () => {
 
   const fetchVets = async () => {
     try {
+      console.log('Starting to fetch vets...');
       const vetsRef = collection(db, "vets");
-      const q = query(vetsRef, where("status", "==", "active")); // Added status filter
+      console.log('Collection reference created');
+      
+      // First, try without any filters to see all vets
+      const allVetsSnapshot = await getDocs(vetsRef);
+      console.log('All vets in collection (unfiltered):', {
+        size: allVetsSnapshot.size,
+        docs: allVetsSnapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      });
+      
+      // Then try with the status filter
+      const q = query(vetsRef, where("status", "==", "pending"));
+      console.log('Query with pending status filter created');
+      
       const snapshot = await getDocs(q);
+      console.log('Filtered vets query result:', {
+        size: snapshot.size,
+        empty: snapshot.empty,
+        docs: snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      });
       
       if (snapshot.empty) {
-        console.log('No active veterinarians found');
-        setVets([]);
+        console.log('No active veterinarians found. Showing all vets instead.');
+        // If no active vets found, show all vets as a fallback
+        const allVets = allVetsSnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.name || 'Veterinarian',
+            specialization: data.specialization || 'General Practice',
+            ...data
+          } as Vet;
+        });
+        setVets(allVets);
         return;
       }
       
       const vetsData = snapshot.docs.map(doc => {
         const data = doc.data();
+        console.log('Processing vet data:', { id: doc.id, ...data });
         return {
           id: doc.id,
           name: data.name || 'Veterinarian',
-          specialization: data.specialization || 'General',
+          specialization: data.specialization || 'General Practice',
           ...data
         } as Vet;
       });
@@ -317,7 +346,7 @@ const BookAppointment = () => {
                       <Picker.Item 
                         key={vet.id} 
                         label={`${vet.name} (${vet.specialization})`} 
-                        value={vet.id} 
+                        value={vet.id}
                       />
                     ))}
                   </Picker>
@@ -469,7 +498,10 @@ const styles = StyleSheet.create({
   },
   picker: {
     width: '100%',
-    backgroundColor: '#f9f9f9',
+    color: '#333',
+  },
+  pickerItem: {
+    fontSize: 16,
   },
   pickerPlaceholder: {
     color: '#999',

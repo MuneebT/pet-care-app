@@ -5,18 +5,18 @@ import { router, useLocalSearchParams } from "expo-router";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-  Image,
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    ActivityIndicator,
+    Alert,
+    Dimensions,
+    Image,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from "react-native";
 import { Avatar, useTheme } from "react-native-paper";
 
@@ -62,23 +62,10 @@ const Home = () => {
           const userData = userDoc.data();
           setName(userData.name || "Pet Parent");
           
-          // Reference to the user's pets subcollection
-          const userPetsRef = collection(db, "users", userId, "pets");
-          
+          // Check if user has any pets (no automatic creation)
           try {
-            // Check if user has any pets
-            const petsSnapshot = await getDocs(userPetsRef);
-            
-            if (petsSnapshot.empty) {
-              // Create a default pet in the user's pets subcollection
-              await setDoc(doc(userPetsRef), {
-                name: "My First Pet",
-                type: "Dog",
-                breed: "Unknown",
-                age: 1,
-                createdAt: new Date().toISOString()
-              });
-            }
+            const userPetsRef = collection(db, "users", userId, "pets");
+            await getDocs(userPetsRef); // Just verify we can access the collection
           } catch (petsError) {
             console.error("Error accessing pets collection:", petsError);
             // Don't block the UI for this error

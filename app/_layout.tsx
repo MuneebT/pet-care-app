@@ -1,11 +1,11 @@
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { Stack, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-
-import * as NavigationBar from 'expo-navigation-bar';
 import { useCallback, useEffect } from 'react';
+import { MD3DarkTheme as PaperDarkTheme, MD3LightTheme as PaperDefaultTheme, PaperProvider } from 'react-native-paper';
+import 'react-native-reanimated';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -31,10 +31,16 @@ export default function RootLayout() {
     }, [])
   );
 
+  const paperTheme = colorScheme === 'dark' 
+    ? { ...PaperDarkTheme, colors: { ...PaperDarkTheme.colors, primary: '#BB86FC' } }
+    : { ...PaperDefaultTheme, colors: { ...PaperDefaultTheme.colors, primary: '#6200EE' } };
+
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }} />
-      <StatusBar hidden />
-    </ThemeProvider>
+    <PaperProvider theme={paperTheme}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack screenOptions={{ headerShown: false }} />
+        <StatusBar hidden />
+      </ThemeProvider>
+    </PaperProvider>
   );
 }
