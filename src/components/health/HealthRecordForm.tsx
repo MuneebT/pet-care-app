@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, TextInput, Button, useTheme, HelperText } from 'react-native-paper';
-import { HealthRecordFormData, RecordType } from '@/src/types/healthRecord';
+import { HealthRecordFormData, RecordType } from '@/types/healthRecord';
 
 interface HealthRecordFormProps {
   formData: HealthRecordFormData;

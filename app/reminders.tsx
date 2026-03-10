@@ -1,4 +1,5 @@
-import { auth, db } from "@/src/config/firebase";
+import { auth, db } from "@/services/firebase";
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from "expo-router";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
@@ -27,6 +28,7 @@ import {
 } from "react-native";
 import { Button, useTheme } from "react-native-paper";
 import BottomNavigationBar from "./bottomnavigationbar";
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
 
 interface Reminder {
   id: string;
@@ -52,18 +54,14 @@ const RemindersScreen: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const theme = useTheme();
 
-  // Format date to readable string
   const formatDate = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
+      weekday: 'short',
+      month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     }).format(date);
   };
 
-  // Get current user on component mount
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -87,7 +85,6 @@ const RemindersScreen: React.FC = () => {
       setIsLoading(true);
       setError(null);
       
-      // Query appointments for the current user that are confirmed
       const appointmentsRef = collection(db, "appointments");
       const q = query(
         appointmentsRef, 
@@ -105,7 +102,6 @@ const RemindersScreen: React.FC = () => {
 
       const remindersData: Reminder[] = [];
       
-      // Process each reminder
       for (const docSnapshot of querySnapshot.docs) {
         const data = docSnapshot.data() as DocumentData;
         const reminderDate = data.date?.toDate() || new Date();
@@ -124,7 +120,6 @@ const RemindersScreen: React.FC = () => {
           updatedAt: data.updatedAt?.toDate() || new Date(),
         };
 
-        // Fetch pet details
         try {
           if (data.petId) {
             const petDoc = await getDoc(doc(db, "users", userId, "pets", data.petId));
@@ -138,7 +133,6 @@ const RemindersScreen: React.FC = () => {
           reminder.petName = 'Pet not found';
         }
 
-        // Fetch vet details
         try {
           if (data.vetId) {
             const vetDoc = await getDoc(doc(db, "vets", data.vetId));
@@ -155,7 +149,6 @@ const RemindersScreen: React.FC = () => {
         remindersData.push(reminder);
       }
 
-      // Sort by date (newest first)
       const sortedReminders = [...remindersData].sort(
         (a, b) => a.date.getTime() - b.date.getTime()
       );
@@ -170,7 +163,6 @@ const RemindersScreen: React.FC = () => {
     }
   };
 
-  // Filter reminders based on selected filter
   const filterReminders = (remindersList = reminders) => {
     if (remindersList.length === 0) {
       setFilteredReminders([]);
@@ -194,17 +186,36 @@ const RemindersScreen: React.FC = () => {
   const renderItem: ListRenderItem<Reminder> = ({ item }) => {
     return (
       <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <Text style={styles.petName}>{item.petName}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: '#B2F0C0' }]}>
-            <Text style={styles.statusText}>Reminder</Text>
+        <View style={styles.cardHeader}>
+          <View style={styles.petInfoContainer}>
+            <View style={styles.petAvatar}>
+              <MaterialIcons name="pets" size={20} color={Colors.light.primary} />
+            </View>
+            <View>
+              <Text style={styles.petName}>{item.petName}</Text>
+              <Text style={styles.vetName}>Dr. {item.vetName}</Text>
+            </View>
+          </View>
+          <View style={styles.statusBadge}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Confirmed</Text>
           </View>
         </View>
-
-        <Text style={styles.vetName}>Vet: {item.vetName}</Text>
-        <Text style={styles.dateText}>
-          {formatDate(item.date)} at {item.time}
-        </Text>
+        
+        <View style={styles.cardDivider} />
+        
+        <View style={styles.cardContent}>
+          <View style={styles.dateTimeContainer}>
+            <View style={styles.dateContainer}>
+              <MaterialCommunityIcons name="calendar" size={18} color={Colors.light.textSecondary} />
+              <Text style={styles.dateText}>{formatDate(item.date)}</Text>
+            </View>
+            <View style={styles.timeContainer}>
+              <MaterialCommunityIcons name="clock-outline" size={18} color={Colors.light.textSecondary} />
+              <Text style={styles.timeText}>{item.time}</Text>
+            </View>
+          </View>
+        </View>
       </View>
     );
   };
@@ -212,7 +223,7 @@ const RemindersScreen: React.FC = () => {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <ActivityIndicator size="large" color={Colors.light.primary} />
       </View>
     );
   }
@@ -220,11 +231,15 @@ const RemindersScreen: React.FC = () => {
   if (error) {
     return (
       <View style={styles.errorContainer}>
+        <View style={styles.errorIconContainer}>
+          <MaterialIcons name="error-outline" size={48} color={Colors.light.error} />
+        </View>
         <Text style={styles.errorText}>{error}</Text>
         <Button 
           mode="contained" 
           onPress={() => currentUser && fetchReminders(currentUser.uid)}
           style={styles.retryButton}
+          labelStyle={styles.retryButtonLabel}
         >
           Retry
         </Button>
@@ -239,55 +254,62 @@ const RemindersScreen: React.FC = () => {
     >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <View style={styles.innerContainer}>
-          <ScrollView contentContainerStyle={styles.scrollViewContent}>
-            <View style={styles.header}>
-              <Text style={styles.title}>Reminders</Text>
-            </View>
+          <View style={styles.header}>
+            <Text style={styles.title}>Reminders</Text>
+            <Text style={styles.subtitle}>{filteredReminders.length} appointments</Text>
+          </View>
 
-            <View style={styles.filterContainer}>
-              <View style={styles.filterBackground}>
-                <TouchableOpacity
-                  style={[
-                    styles.filterButton,
-                    filter === "upcoming" && styles.activeFilterButton,
-                  ]}
-                  onPress={() => setFilter("upcoming")}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      filter === "upcoming" && styles.activeFilterText,
-                    ]}
-                  >
-                    Upcoming
-                  </Text>
-                </TouchableOpacity>
+          <View style={styles.filterContainer}>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filter === "upcoming" && styles.activeFilterButton,
+              ]}
+              onPress={() => setFilter("upcoming")}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  filter === "upcoming" && styles.activeFilterText,
+                ]}
+              >
+                Upcoming
+              </Text>
+            </TouchableOpacity>
 
-                <TouchableOpacity
-                  style={[
-                    styles.filterButton,
-                    filter === "past" && styles.activeFilterButton,
-                  ]}
-                  onPress={() => setFilter("past")}
-                >
-                  <Text
-                    style={[
-                      styles.filterText,
-                      filter === "past" && styles.activeFilterText,
-                    ]}
-                  >
-                    Past
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+            <TouchableOpacity
+              style={[
+                styles.filterButton,
+                filter === "past" && styles.activeFilterButton,
+              ]}
+              onPress={() => setFilter("past")}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  filter === "past" && styles.activeFilterText,
+                ]}
+              >
+                Past
+              </Text>
+            </TouchableOpacity>
+          </View>
 
+          <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
             {filteredReminders.length === 0 ? (
               <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <MaterialCommunityIcons name="calendar-blank" size={56} color={Colors.light.textTertiary} />
+                </View>
                 <Text style={styles.emptyStateText}>
                   {filter === 'upcoming' 
-                    ? 'No upcoming reminders' 
-                    : 'No past reminders'}
+                    ? 'No upcoming appointments' 
+                    : 'No past appointments'}
+                </Text>
+                <Text style={styles.emptyStateSubtext}>
+                  {filter === 'upcoming' 
+                    ? 'Book an appointment to see it here' 
+                    : 'Your completed appointments will appear here'}
                 </Text>
               </View>
             ) : (
@@ -315,119 +337,180 @@ export default RemindersScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.background,
   },
   innerContainer: {
     flex: 1,
   },
-  scrollViewContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: Colors.light.white,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#5B4034',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.text,
+  },
+  subtitle: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    marginTop: 4,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.light.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.xl,
+    backgroundColor: Colors.light.background,
+  },
+  errorIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   errorText: {
-    color: 'red',
-    marginBottom: 20,
+    color: Colors.light.textSecondary,
+    marginBottom: Spacing.lg,
     textAlign: 'center',
+    fontSize: FontSize.md,
   },
   retryButton: {
-    marginTop: 10,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.lg,
+  },
+  retryButtonLabel: {
+    color: Colors.light.white,
+    fontWeight: FontWeight.semibold,
   },
   filterContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginBottom: 20,
-  },
-  filterBackground: {
-    flexDirection: 'row',
-    backgroundColor: '#f0f0f0',
-    borderRadius: 30,
-    padding: 4,
+    paddingVertical: Spacing.md,
+    backgroundColor: Colors.light.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
   },
   filterButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 25,
-    borderRadius: 25,
-    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.full,
+    marginHorizontal: Spacing.xs,
   },
   activeFilterButton: {
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: Colors.light.primary,
   },
   filterText: {
-    color: '#666',
-    fontWeight: '500',
+    color: Colors.light.textSecondary,
+    fontWeight: FontWeight.medium,
+    fontSize: FontSize.sm,
   },
   activeFilterText: {
-    color: '#007AFF',
-    fontWeight: '600',
+    color: Colors.light.white,
+    fontWeight: FontWeight.semibold,
   },
-  headerRow: {
+  scrollViewContent: {
+    padding: Spacing.md,
+    paddingBottom: 100,
+  },
+  card: {
+    backgroundColor: Colors.light.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+    ...Shadow.sm,
+  },
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    padding: Spacing.md,
   },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 5,
-    elevation: 3,
+  petInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  petAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
   },
   petName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#5B4034",
-  },
-  statusBadge: {
-    backgroundColor: "#B2F0C0",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  statusText: {
-    fontWeight: "bold",
-    color: "#333",
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.text,
   },
   vetName: {
-    fontSize: 16,
-    color: "#6C4A3E",
-    marginTop: 8,
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.light.secondary,
+    marginRight: 4,
+  },
+  statusText: {
+    fontSize: FontSize.xs,
+    color: Colors.light.secondary,
+    fontWeight: FontWeight.medium,
+  },
+  cardDivider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
+  },
+  cardContent: {
+    padding: Spacing.md,
+  },
+  dateTimeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: Spacing.lg,
   },
   dateText: {
-    fontSize: 14,
-    color: "#6C4A3E",
-    marginTop: 5,
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    marginLeft: Spacing.xs,
+    fontWeight: FontWeight.medium,
+  },
+  timeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeText: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    marginLeft: Spacing.xs,
+    fontWeight: FontWeight.medium,
   },
   bottomNavContainer: {
     position: "absolute",
@@ -439,12 +522,27 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 50,
+    paddingVertical: Spacing.xxl,
+  },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.light.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyStateText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: FontSize.lg,
+    color: Colors.light.text,
+    fontWeight: FontWeight.semibold,
+    marginBottom: Spacing.xs,
+  },
+  emptyStateSubtext: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textTertiary,
     textAlign: 'center',
-    marginTop: 10,
+    maxWidth: '70%',
   },
 });

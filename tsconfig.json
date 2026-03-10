@@ -4,17 +4,12 @@
     "strict": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
-    },
-    "jsx": "react-native",
-    "module": "ESNext"
+      "@/*": ["./src/*"]
+    }
   },
   "include": [
     "app",
     "src",
-    "components",
-    "hooks",
-    "constants",
     "**/*.ts",
     "**/*.tsx",
     ".expo/types/**/*.ts",

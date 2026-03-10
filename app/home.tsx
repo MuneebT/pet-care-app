@@ -1,4 +1,4 @@
-import { db } from "@/src/config/firebase";
+import { db } from "@/services/firebase";
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useLocalSearchParams } from "expo-router";
@@ -19,6 +19,7 @@ import {
     View
 } from "react-native";
 import { Avatar, useTheme } from "react-native-paper";
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 
@@ -28,14 +29,11 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const theme = useTheme();
 
-  // Get UID from params or fallback to AsyncStorage
   const getUid = async () => {
-    // First try to get from params
     if (params?.uid && typeof params.uid === 'string') {
       return params.uid;
     }
     
-    // If not in params, try AsyncStorage
     try {
       const storedUid = await AsyncStorage.getItem('userId');
       if (storedUid) return storedUid;
@@ -56,23 +54,19 @@ const Home = () => {
           return;
         }
 
-        // Get user data
         const userDoc = await getDoc(doc(db, "users", userId));
         if (userDoc.exists()) {
           const userData = userDoc.data();
           setName(userData.name || "Pet Parent");
           
-          // Check if user has any pets (no automatic creation)
           try {
             const userPetsRef = collection(db, "users", userId, "pets");
-            await getDocs(userPetsRef); // Just verify we can access the collection
+            await getDocs(userPetsRef);
           } catch (petsError) {
             console.error("Error accessing pets collection:", petsError);
-            // Don't block the UI for this error
           }
         } else {
           console.log("No user document found");
-          // Optionally create user document if it doesn't exist
           try {
             await setDoc(doc(db, "users", userId), {
               name: "Pet Parent",
@@ -112,7 +106,6 @@ const Home = () => {
         router.replace("/login");
         return;
       }
-      // For mobile, use the screen name directly without leading slash
       router.push({
         pathname: screen,
         params: { uid: userId, ...params }
@@ -126,39 +119,45 @@ const Home = () => {
   const menuItems = [
     {
       title: "My Pets",
-      icon: <MaterialIcons name="pets" size={28} color="#4A6FA5" />,
+      icon: <MaterialIcons name="pets" size={28} color={Colors.light.primary} />,
       onPress: () => navigateTo('/mypets' as AppRoute),
-      color: "#E3F2FD"
+      color: '#EEF2FF',
+      iconBg: '#E0E7FF'
     },
     {
       title: "Symptom Checker",
-      icon: <MaterialIcons name="medical-services" size={28} color="#388E3C" />,
+      icon: <MaterialIcons name="medical-services" size={28} color={Colors.light.secondary} />,
       onPress: () => navigateTo('/symptomchecker' as AppRoute),
-      color: "#E8F5E9"
+      color: '#ECFDF5',
+      iconBg: '#D1FAE5'
     },
     {
       title: "Appointments",
-      icon: <MaterialCommunityIcons name="calendar-clock" size={28} color="#7B1FA2" />,
+      icon: <MaterialCommunityIcons name="calendar-clock" size={28} color="#8B5CF6" />,
       onPress: () => navigateTo('/appointments' as AppRoute),
-      color: "#F3E5F5"
+      color: '#F5F3FF',
+      iconBg: '#EDE9FE'
     },
     {
       title: "Reminders",
-      icon: <MaterialIcons name="notifications" size={28} color="#F57C00" />,
+      icon: <MaterialIcons name="notifications" size={28} color={Colors.light.accent} />,
       onPress: () => navigateTo('/reminders' as AppRoute),
-      color: "#FFF3E0"
+      color: '#FFFBEB',
+      iconBg: '#FEF3C7'
     },
     {
       title: "Health Records",
-      icon: <MaterialIcons name="folder" size={28} color="#0288D1" />,
+      icon: <MaterialIcons name="folder" size={28} color={Colors.light.info} />,
       onPress: () => navigateTo('/healthrecords' as AppRoute),
-      color: "#E3F2FD"
+      color: '#EFF6FF',
+      iconBg: '#DBEAFE'
     },
     {
       title: "Image Scanner",
-      icon: <MaterialIcons name="camera-alt" size={28} color="#5D4037" />,
+      icon: <MaterialIcons name="camera-alt" size={28} color="#EC4899" />,
       onPress: () => navigateTo('/imagechecker' as AppRoute),
-      color: "#EFEBE9"
+      color: '#FDF2F8',
+      iconBg: '#FCE7F3'
     }
   ];
 
@@ -166,55 +165,68 @@ const Home = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={Colors.light.primary} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
       
-      <ScrollView style={styles.container}>
-        {/* Header */}
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello,</Text>
+            <Text style={styles.greeting}>Good Morning,</Text>
             <Text style={styles.userName}>{name}</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/vets/myprofile')}>
-            <Avatar.Icon 
-              size={50} 
-              icon="account" 
-              style={styles.avatar} 
-              color="#FF6B35"
-            />
+            <View style={styles.avatarContainer}>
+              <Avatar.Icon 
+                size={50} 
+                icon="account" 
+                style={styles.avatar} 
+                color={Colors.light.primary}
+              />
+              <View style={styles.avatarBadge}>
+                <MaterialIcons name="notifications" size={12} color={Colors.light.white} />
+              </View>
+            </View>
           </TouchableOpacity>
         </View>
 
-        {/* Welcome Card */}
         <View style={styles.welcomeCard}>
-          <View>
+          <View style={styles.welcomeContent}>
             <Text style={styles.welcomeTitle}>Welcome to PetCare</Text>
             <Text style={styles.welcomeText}>
-              Track your pet's health and wellness in one place
+              Keep your furry friends healthy and happy
             </Text>
+            <TouchableOpacity style={styles.welcomeButton}>
+              <Text style={styles.welcomeButtonText}>View Pets</Text>
+              <MaterialIcons name="arrow-forward" size={18} color={Colors.light.white} />
+            </TouchableOpacity>
           </View>
-          <Image 
-            source={require('../assets/images/paw.jpg')} 
-            style={styles.welcomeImage}
-          />
+          <View style={styles.welcomeImageContainer}>
+            <Image 
+              source={require('../assets/images/paw.jpg')} 
+              style={styles.welcomeImage}
+            />
+          </View>
         </View>
 
-        {/* Quick Actions Grid */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Quick Actions</Text>
+        </View>
+
         <View style={styles.gridContainer}>
           {menuItems.map((item, index) => (
             <TouchableOpacity
               key={index}
               style={[styles.menuItem, { backgroundColor: item.color }]}
               onPress={item.onPress}
+              activeOpacity={0.7}
             >
-              <View style={styles.menuIconContainer}>
+              <View style={[styles.menuIconContainer, { backgroundColor: item.iconBg }]}>
                 {item.icon}
               </View>
               <Text style={styles.menuItemText}>{item.title}</Text>
@@ -222,25 +234,57 @@ const Home = () => {
           ))}
         </View>
 
-        {/* Recent Activity Section */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Upcoming Reminders</Text>
             <TouchableOpacity>
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.activityCard}>
-            <View style={styles.activityIcon}>
-              <MaterialIcons name="pets" size={24} color="#4CAF50" />
+          
+          <View style={styles.reminderCard}>
+            <View style={styles.reminderIconContainer}>
+              <MaterialCommunityIcons name="needle" size={24} color={Colors.light.primary} />
             </View>
-            <View style={styles.activityContent}>
-              <Text style={styles.activityTitle}>Vaccination Due</Text>
-              <Text style={styles.activityText}>Your pet's annual vaccination is due soon</Text>
-              <Text style={styles.activityTime}>Today</Text>
+            <View style={styles.reminderContent}>
+              <Text style={styles.reminderTitle}>Vaccination Due</Text>
+              <Text style={styles.reminderText}>Annual vaccination for Max</Text>
+              <Text style={styles.reminderTime}>Today, 2:00 PM</Text>
+            </View>
+            <View style={styles.reminderStatus}>
+              <View style={styles.statusDot} />
+            </View>
+          </View>
+
+          <View style={styles.reminderCard}>
+            <View style={[styles.reminderIconContainer, { backgroundColor: '#ECFDF5' }]}>
+              <MaterialCommunityIcons name="tooth" size={24} color={Colors.light.secondary} />
+            </View>
+            <View style={styles.reminderContent}>
+              <Text style={styles.reminderTitle}>Dental Checkup</Text>
+              <Text style={styles.reminderText}>Dental cleaning for Bella</Text>
+              <Text style={styles.reminderTime}>Tomorrow, 10:00 AM</Text>
+            </View>
+            <View style={[styles.reminderStatus, { backgroundColor: '#ECFDF5' }]}>
+              <View style={[styles.statusDot, { backgroundColor: Colors.light.secondary }]} />
             </View>
           </View>
         </View>
+
+        <View style={styles.tipsSection}>
+          <Text style={styles.tipsSectionTitle}>Pet Care Tips</Text>
+          <View style={styles.tipCard}>
+            <View style={styles.tipIconContainer}>
+              <MaterialIcons name="lightbulb" size={24} color={Colors.light.accent} />
+            </View>
+            <View style={styles.tipContent}>
+              <Text style={styles.tipTitle}>Stay Hydrated</Text>
+              <Text style={styles.tipText}>Make sure your pet has access to fresh water at all times</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={{ height: 100 }} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,177 +293,244 @@ const Home = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
   },
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
-    padding: 16,
+    backgroundColor: Colors.light.background,
+    paddingHorizontal: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.light.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   greeting: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: FontSize.md,
+    color: Colors.light.textSecondary,
+    fontWeight: FontWeight.medium,
   },
   userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 4,
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.text,
+    marginTop: 2,
+  },
+  avatarContainer: {
+    position: 'relative',
   },
   avatar: {
-    backgroundColor: '#FFECB3',
+    backgroundColor: '#EEF2FF',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.full,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.light.white,
   },
   welcomeCard: {
-    backgroundColor: '#FF6B35',
-    borderRadius: 16,
-    padding: 20,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    marginBottom: Spacing.lg,
+    ...Shadow.lg,
+  },
+  welcomeContent: {
+    flex: 1,
   },
   welcomeTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.white,
+    marginBottom: Spacing.xs,
   },
   welcomeText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    maxWidth: '70%',
+    fontSize: FontSize.sm,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginBottom: Spacing.md,
+    lineHeight: 20,
+  },
+  welcomeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.full,
+    alignSelf: 'flex-start',
+  },
+  welcomeButtonText: {
+    color: Colors.light.white,
+    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.sm,
+    marginRight: Spacing.xs,
+  },
+  welcomeImageContainer: {
+    marginLeft: Spacing.md,
   },
   welcomeImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 10,
+    width: 90,
+    height: 90,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  sectionHeader: {
+    marginBottom: Spacing.md,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.text,
+  },
+  seeAllText: {
+    color: Colors.light.primary,
+    fontWeight: FontWeight.semibold,
+    fontSize: FontSize.sm,
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   menuItem: {
-    width: (width - 48) / 2,
-    height: 120,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    width: (width - Spacing.md * 3) / 2,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadow.sm,
   },
   menuIconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing.sm,
   },
   menuItemText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.light.text,
     textAlign: 'center',
   },
   section: {
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  seeAllText: {
-    color: '#FF6B35',
-    fontWeight: '500',
-  },
-  activityCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
+  reminderCard: {
+    backgroundColor: Colors.light.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 2,
-      },
-    }),
+    marginBottom: Spacing.sm,
+    ...Shadow.sm,
   },
-  activityIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+  reminderIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: Spacing.md,
   },
-  activityContent: {
+  reminderContent: {
     flex: 1,
   },
-  activityTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+  reminderTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.light.text,
+    marginBottom: 2,
   },
-  activityText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
+  reminderText: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
   },
-  activityTime: {
-    fontSize: 12,
-    color: '#999',
+  reminderTime: {
+    fontSize: FontSize.xs,
+    color: Colors.light.textTertiary,
+  },
+  reminderStatus: {
+    width: 12,
+    height: 12,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.light.primary,
+  },
+  tipsSection: {
+    marginBottom: Spacing.lg,
+  },
+  tipsSectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.text,
+    marginBottom: Spacing.md,
+  },
+  tipCard: {
+    backgroundColor: Colors.light.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...Shadow.sm,
+  },
+  tipIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#FFFBEB',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+  },
+  tipContent: {
+    flex: 1,
+  },
+  tipTitle: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  tipText: {
+    fontSize: FontSize.sm,
+    color: Colors.light.textSecondary,
+    lineHeight: 20,
   },
 });
 

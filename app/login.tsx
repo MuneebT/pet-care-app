@@ -1,7 +1,7 @@
-import { auth, db } from '@/src/config/firebase';
+import { auth, db } from '@/services/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useRef, useState } from 'react';
 import {
@@ -20,11 +20,14 @@ import {
   View,
 } from 'react-native';
 import { Button as PaperButton } from 'react-native-paper';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const passwordInput = useRef<TextInput>(null);
 
@@ -75,16 +78,13 @@ const Login = () => {
     console.log('🔑 Login attempt:', { email: email.trim() });
 
     try {
-      // 1. First, authenticate with Firebase Auth
       console.log('🔐 Attempting Firebase authentication...');
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
       console.log('✅ Authentication successful, UID:', user.uid);
 
-      // 2. Store user ID in AsyncStorage
       await AsyncStorage.setItem('userId', user.uid);
       
-      // 3. Get user role directly by UID
       const userRole = await getCurrentUserRole(user.uid);
       console.log('👥 User role:', userRole);
       
@@ -95,14 +95,12 @@ const Login = () => {
         return;
       }
 
-      // 4. For vets, check if they've completed their credentials
       if (userRole === 'veterinarian') {
         const hasCredentials = await checkVetCredentials(user.uid);
         const route = hasCredentials ? '/vets/home' : '/vets/credentials';
         console.log('🚀 Navigating to:', route);
         router.replace({ pathname: route, params: { userId: user.uid } });
       } else {
-        // For non-vet users, go to regular home
         console.log('🚀 Navigating to: /home');
         router.replace({ pathname: '/home', params: { userId: user.uid } });
       }
@@ -150,6 +148,39 @@ const Login = () => {
     }
   };
 
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      Alert.alert('Error', 'Please enter your email address first');
+      return;
+    }
+    if (!email.includes('@') || !email.includes('.')) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      Alert.alert('Success', 'Password reset email sent! Check your inbox.');
+    } catch (error: any) {
+      console.error('Password reset error:', error?.code, error?.message);
+      let errorMessage = 'Failed to send password reset email.';
+      
+      switch (error.code) {
+        case 'auth/user-not-found':
+          errorMessage = 'No account found with this email address.';
+          break;
+        case 'auth/invalid-email':
+          errorMessage = 'Please enter a valid email address.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many requests. Please try again later.';
+          break;
+      }
+      
+      Alert.alert('Error', errorMessage);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -162,72 +193,110 @@ const Login = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../assets/images/paw.jpg')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.title}>WELCOME BACK</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
+          <View style={styles.headerSection}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Image
+                  source={require('../assets/images/paw.jpg')}
+                  style={styles.logo}
+                  resizeMode="cover"
+                />
+              </View>
+              <Text style={styles.title}>PetCare</Text>
+              <Text style={styles.subtitle}>Welcome back! Please sign in to continue</Text>
+            </View>
           </View>
 
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your email"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoCorrect={false}
-              autoComplete="email"
-              textContentType="emailAddress"
-              keyboardAppearance="default"
-              returnKeyType="next"
-              blurOnSubmit={false}
-              onSubmitEditing={() => passwordInput.current?.focus()}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputContainer}>
+                <MaterialCommunityIcons name="email-outline" size={20} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your email"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={email}
+                  onChangeText={setEmail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                  keyboardAppearance="light"
+                  returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => passwordInput.current?.focus()}
+                />
+              </View>
+            </View>
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              ref={passwordInput}
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry
-              returnKeyType="go"
-              onSubmitEditing={handleLogin}
-              autoComplete="password"
-              textContentType="password"
-              keyboardAppearance="default"
-              enablesReturnKeyAutomatically={true}
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputContainer}>
+                <MaterialCommunityIcons name="lock-outline" size={20} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  ref={passwordInput}
+                  style={styles.input}
+                  placeholder="Enter your password"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                  returnKeyType="go"
+                  onSubmitEditing={handleLogin}
+                  autoComplete="password"
+                  textContentType="password"
+                  keyboardAppearance="light"
+                  enablesReturnKeyAutomatically={true}
+                />
+                <TouchableOpacity 
+                  style={styles.eyeIcon}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <MaterialCommunityIcons 
+                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                    size={20} 
+                    color={Colors.light.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
 
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity style={styles.forgotPassword} onPress={handlePasswordReset}>
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <PaperButton
-              mode="contained"
+            <TouchableOpacity 
+              style={[styles.button, isLoading && styles.buttonDisabled]}
               onPress={handleLogin}
-              style={styles.button}
-              labelStyle={styles.buttonLabel}
               disabled={isLoading}
+              activeOpacity={0.8}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={Colors.light.white} />
               ) : (
-                'Sign In'
+                <Text style={styles.buttonText}>Sign In</Text>
               )}
-            </PaperButton>
+            </TouchableOpacity>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>or</Text>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <View style={styles.socialButtons}>
+              <TouchableOpacity style={styles.socialButton}>
+                <MaterialCommunityIcons name="google" size={24} color="#DB4437" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.socialButton}>
+                <MaterialCommunityIcons name="apple" size={24} color="#000000" />
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.signupContainer}>
-              <Text style={styles.signupText}>Don't have an account? </Text>
+              <Text style={styles.signupText}>Don&apos;t have an account? </Text>
               <TouchableOpacity onPress={gotoSignup} disabled={isLoading}>
                 <Text style={styles.signupLink}>Sign Up</Text>
               </TouchableOpacity>
@@ -242,99 +311,153 @@ const Login = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.light.background,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+  },
+  headerSection: {
+    paddingTop: Spacing.xxl + 20,
+    paddingBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+  },
+  logoCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.light.white,
+    padding: 4,
+    marginBottom: Spacing.md,
+    ...Shadow.lg,
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 15,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 10,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: 'white',
-    marginBottom: 8,
+    fontSize: FontSize.xxxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.primary,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 10,
+    fontSize: FontSize.md,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
   },
   formContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: Colors.light.white,
+    borderTopLeftRadius: BorderRadius.xxl,
+    borderTopRightRadius: BorderRadius.xxl,
+    padding: Spacing.lg,
+    paddingTop: Spacing.xl,
+    flex: 1,
+    ...Shadow.xl,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 15,
-    marginBottom: 5,
-    marginLeft: 5,
+  inputGroup: {
+    marginBottom: Spacing.md,
+  },
+  inputLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.light.text,
+    marginBottom: Spacing.xs,
+    marginLeft: Spacing.xs,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.surfaceVariant,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  inputIcon: {
+    marginLeft: Spacing.md,
   },
   input: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#333',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+    flex: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 14,
+    fontSize: FontSize.md,
+    color: Colors.light.text,
+  },
+  eyeIcon: {
+    padding: Spacing.md,
   },
   forgotPassword: {
     alignSelf: 'flex-end',
-    marginTop: 8,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.lg,
   },
   forgotPasswordText: {
-    color: '#FF6B35',
-    fontSize: 14,
-    fontWeight: '500',
+    color: Colors.light.primary,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
   },
   button: {
-    marginTop: 25,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#FF6B35',
-    elevation: 2,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.md,
   },
-  buttonLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    paddingVertical: 4,
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.white,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: Spacing.lg,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: Colors.light.border,
+  },
+  dividerText: {
+    marginHorizontal: Spacing.md,
+    color: Colors.light.textTertiary,
+    fontSize: FontSize.sm,
+  },
+  socialButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.md,
+  },
+  socialButton: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.light.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: Spacing.lg,
   },
   signupText: {
-    color: '#666',
-    fontSize: 15,
+    color: Colors.light.textSecondary,
+    fontSize: FontSize.md,
   },
   signupLink: {
-    color: '#FF6B35',
-    fontWeight: '600',
-    fontSize: 15,
+    color: Colors.light.primary,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.md,
   },
 });
 

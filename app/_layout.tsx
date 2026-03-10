@@ -5,10 +5,13 @@ import { Stack, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
 import { MD3DarkTheme as PaperDarkTheme, MD3LightTheme as PaperDefaultTheme, PaperProvider } from 'react-native-paper';
+import { Colors } from '@/constants/theme';
 import 'react-native-reanimated';
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
+  const themeColors = isDark ? Colors.dark : Colors.light;
 
   const hideSystemBars = async () => {
     try {
@@ -19,25 +22,65 @@ export default function RootLayout() {
     }
   };
 
-  // Run once on app startup
   useEffect(() => {
     hideSystemBars();
   }, []);
 
-  // Run again every time the screen is focused (after picking image/document)
   useFocusEffect(
     useCallback(() => {
       hideSystemBars();
     }, [])
   );
 
-  const paperTheme = colorScheme === 'dark' 
-    ? { ...PaperDarkTheme, colors: { ...PaperDarkTheme.colors, primary: '#BB86FC' } }
-    : { ...PaperDefaultTheme, colors: { ...PaperDefaultTheme.colors, primary: '#6200EE' } };
+  const paperTheme = isDark 
+    ? { 
+        ...PaperDarkTheme, 
+        colors: { 
+          ...PaperDarkTheme.colors, 
+          primary: themeColors.primary,
+          secondary: themeColors.secondary,
+          background: themeColors.background,
+          surface: themeColors.surface,
+        } 
+      }
+    : { 
+        ...PaperDefaultTheme, 
+        colors: { 
+          ...PaperDefaultTheme.colors, 
+          primary: themeColors.primary,
+          secondary: themeColors.secondary,
+          background: themeColors.background,
+          surface: themeColors.surface,
+        } 
+      };
+
+  const navigationTheme = isDark 
+    ? {
+        ...DarkTheme,
+        colors: {
+          ...DarkTheme.colors,
+          primary: themeColors.primary,
+          background: themeColors.background,
+          card: themeColors.surface,
+          text: themeColors.text,
+          border: themeColors.border,
+        },
+      }
+    : {
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          primary: themeColors.primary,
+          background: themeColors.background,
+          card: themeColors.surface,
+          text: themeColors.text,
+          border: themeColors.border,
+        },
+      };
 
   return (
     <PaperProvider theme={paperTheme}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+      <ThemeProvider value={navigationTheme}>
         <Stack screenOptions={{ headerShown: false }} />
         <StatusBar hidden />
       </ThemeProvider>

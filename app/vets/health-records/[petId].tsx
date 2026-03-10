@@ -1,6 +1,6 @@
-import HealthRecordForm from '@/src/components/health/HealthRecordForm';
-import { db } from '@/src/config/firebase';
-import { HealthRecord, HealthRecordFormData, RecordType } from '@/src/types/healthRecord';
+import HealthRecordForm from '@/components/health/HealthRecordForm';
+import { db } from '@/services/firebase';
+import { HealthRecord, HealthRecordFormData, RecordType } from '@/types/healthRecord';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import * as FileSystem from 'expo-file-system';
