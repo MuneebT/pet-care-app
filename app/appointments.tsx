@@ -1,4 +1,4 @@
-import { auth, db } from "@/src/config/firebase";
+import { auth, db } from "@/services/firebase";
 import { router, useLocalSearchParams } from "expo-router";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {

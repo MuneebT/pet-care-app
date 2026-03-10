@@ -1,4 +1,4 @@
-import { auth } from '@/src/config/firebase';
+import { auth } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useRouter, useSegments } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -11,6 +11,7 @@ import {
   useColorScheme
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
 
 type AppRoute = 
   | '/home'
@@ -29,12 +30,12 @@ type NavItem = {
 const BottomNavigationBar = () => {
   const theme = useTheme();
   const colorScheme = useColorScheme();
+  const isDark = colorScheme === 'dark';
   const router = useRouter();
   const segments = useSegments();
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
   const [activeRoute, setActiveRoute] = useState('home');
 
-  // Get current user
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -42,7 +43,6 @@ const BottomNavigationBar = () => {
     return unsubscribe;
   }, []);
 
-  // Update active route when segments change
   useEffect(() => {
     if (segments.length > 0) {
       setActiveRoute(segments[segments.length - 1]);
@@ -54,44 +54,43 @@ const BottomNavigationBar = () => {
       name: 'Home', 
       icon: 'home', 
       route: '/home',
-      color: theme.colors.primary
+      color: Colors.light.primary
     },
     { 
-      name: 'My Pets', 
+      name: 'Pets', 
       icon: 'paw', 
       route: '/mypets',
-      color: theme.colors.secondary
+      color: '#8B5CF6'
     },
     { 
-      name: 'AI Checker', 
+      name: 'AI Check', 
       icon: 'robot', 
       route: '/symptomchecker',
-      color: '#6a5acd'
+      color: '#EC4899'
     },
     { 
-      name: 'Appointments', 
+      name: 'Appts', 
       icon: 'calendar', 
       route: '/appointments',
-      color: '#ff6b6b'
+      color: '#F59E0B'
     },
     { 
-      name: 'Detector', 
+      name: 'Scan', 
       icon: 'camera', 
       route: '/imagechecker',
-      color: '#4ecdc4'
+      color: '#10B981'
     }
   ];
 
   if (!currentUser) {
-    return null; // Don't show navigation if user is not logged in
+    return null;
   }
 
   return (
-    <View style={[styles.container, { 
-      backgroundColor: colorScheme === 'dark' ? '#1a1a1a' : '#ffffff',
-      borderTopColor: colorScheme === 'dark' ? '#333' : '#e0e0e0'
-    }]}>
-      <View style={styles.navBar}>
+    <View style={styles.container}>
+      <View style={[styles.navBar, {
+        backgroundColor: isDark ? Colors.dark.surface : Colors.light.white,
+      }]}>
         {navItems.map((item) => {
           const isActive = activeRoute === item.route.split('/').pop();
           return (
@@ -105,19 +104,19 @@ const BottomNavigationBar = () => {
                 <View style={[
                   styles.iconContainer,
                   isActive && styles.activeIconContainer,
-                  { backgroundColor: isActive ? `${item.color}20` : 'transparent' }
+                  { backgroundColor: isActive ? `${item.color}15` : 'transparent' }
                 ]}>
                   <MaterialCommunityIcons
-                    name={item.icon}
-                    size={24}
-                    color={isActive ? item.color : colorScheme === 'dark' ? '#a0a0a0' : '#666666'}
+                    name={item.icon as any}
+                    size={22}
+                    color={isActive ? item.color : isDark ? Colors.dark.textTertiary : Colors.light.textTertiary}
                   />
                 </View>
                 <Text style={[
                   styles.navText,
                   { 
-                    color: isActive ? item.color : colorScheme === 'dark' ? '#a0a0a0' : '#666666',
-                    fontWeight: isActive ? 'bold' : 'normal'
+                    color: isActive ? item.color : isDark ? Colors.dark.textTertiary : Colors.light.textTertiary,
+                    fontWeight: isActive ? FontWeight.semibold : FontWeight.regular
                   }
                 ]}>
                   {item.name}
@@ -134,42 +133,35 @@ const BottomNavigationBar = () => {
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderTopWidth: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    bottom: Spacing.md,
+    left: Spacing.md,
+    right: Spacing.md,
+    ...Shadow.lg,
   },
   navBar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.xs,
   },
   navButton: {
     alignItems: 'center',
-    padding: 4,
-    borderRadius: 8,
+    paddingVertical: Spacing.xs,
     flex: 1,
   },
   iconContainer: {
-    padding: 8,
-    borderRadius: 20,
-    marginBottom: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.md,
+    marginBottom: 2,
   },
   activeIconContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   navText: {
-    fontSize: 10,
-    marginTop: 2,
+    fontSize: FontSize.xs,
     textAlign: 'center',
-    fontFamily: 'System',
   },
 });
 
