@@ -17,33 +17,33 @@ import {
 } from 'react-native';
 import { Button, FAB, useTheme } from 'react-native-paper';
 import BottomNavigationBar from './bottomnavigationbar';
-import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: currentColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
+    backgroundColor: currentColors.background,
   },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    backgroundColor: Colors.light.white,
+    backgroundColor: currentColors.white,
   },
   headerTitle: {
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.bold,
-    color: Colors.light.text,
+    color: currentColors.text,
   },
   headerSubtitle: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     marginTop: 4,
   },
   listContent: {
@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
   },
   petCard: {
-    backgroundColor: Colors.light.white,
+    backgroundColor: currentColors.white,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
     overflow: 'hidden',
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: BorderRadius.lg,
     marginRight: Spacing.md,
-    backgroundColor: Colors.light.surfaceVariant,
+    backgroundColor: currentColors.surfaceVariant,
   },
   petImagePlaceholder: {
     width: 80,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   petName: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.light.text,
+    color: currentColors.text,
     marginBottom: 4,
   },
   petDetails: {
@@ -97,12 +97,12 @@ const styles = StyleSheet.create({
   },
   petDetail: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     marginRight: Spacing.sm,
   },
   petDetailDot: {
     fontSize: FontSize.sm,
-    color: Colors.light.textTertiary,
+    color: currentColors.textTertiary,
     marginRight: Spacing.sm,
   },
   petActions: {
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.light.surfaceVariant,
+    backgroundColor: currentColors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm,
@@ -135,24 +135,24 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSize.lg,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     marginBottom: Spacing.xs,
     fontWeight: FontWeight.semibold,
   },
   emptySubtext: {
     fontSize: FontSize.sm,
-    color: Colors.light.textTertiary,
+    color: currentColors.textTertiary,
     marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   addButton: {
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: currentColors.primary,
     paddingHorizontal: Spacing.lg,
     ...Shadow.md,
   },
   addButtonLabel: {
-    color: Colors.light.white,
+    color: currentColors.white,
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
   },
@@ -160,7 +160,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: Spacing.lg,
     bottom: 100,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: currentColors.primary,
     borderRadius: BorderRadius.lg,
     ...Shadow.lg,
   },
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
   },
   navButtonText: {
     fontSize: FontSize.xs,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     marginTop: 2,
   },
   petTypeContainer: {
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   petTypeText: {
     fontSize: FontSize.xs,
-    color: Colors.light.primary,
+    color: currentColors.primary,
     fontWeight: FontWeight.medium,
   },
 });
@@ -373,7 +373,7 @@ const MyPets = () => {
           <Image source={{ uri: item.image }} style={styles.petImage} />
         ) : (
           <View style={styles.petImagePlaceholder}>
-            <MaterialIcons name="pets" size={36} color={Colors.light.primary} />
+            <MaterialIcons name="pets" size={36} color={currentColors.primary} />
           </View>
         )}
         <View style={styles.petInfo}>
@@ -396,7 +396,7 @@ const MyPets = () => {
                 goToEditPet(item);
               }}
             >
-              <MaterialIcons name="edit" size={18} color={Colors.light.primary} />
+              <MaterialIcons name="edit" size={18} color={currentColors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
@@ -405,7 +405,7 @@ const MyPets = () => {
                 handleDeletePet(item.id);
               }}
             >
-              <MaterialIcons name="delete" size={18} color={Colors.light.error} />
+              <MaterialIcons name="delete" size={18} color={currentColors.error} />
             </TouchableOpacity>
           </View>
         </View>
@@ -416,7 +416,7 @@ const MyPets = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={currentColors.primary} />
       </View>
     );
   }
@@ -436,14 +436,14 @@ const MyPets = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            colors={[Colors.light.primary]}
-            tintColor={Colors.light.primary}
+            colors={[currentColors.primary]}
+            tintColor={currentColors.primary}
           />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={styles.emptyIconContainer}>
-              <MaterialIcons name="pets" size={56} color={Colors.light.primary} />
+              <MaterialIcons name="pets" size={56} color={currentColors.primary} />
             </View>
             <Text style={styles.emptyText}>No pets added yet</Text>
             <Text style={styles.emptySubtext}>Add your first furry friend to get started</Text>
@@ -464,7 +464,7 @@ const MyPets = () => {
         <FAB
           style={styles.fab}
           icon="plus"
-          color={Colors.light.white}
+          color={currentColors.white}
           onPress={navigateToAddPet}
         />
       )}

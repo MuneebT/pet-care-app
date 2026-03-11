@@ -280,21 +280,6 @@ const Login = () => {
               )}
             </TouchableOpacity>
 
-            <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>or</Text>
-              <View style={styles.dividerLine} />
-            </View>
-
-            <View style={styles.socialButtons}>
-              <TouchableOpacity style={styles.socialButton}>
-                <MaterialCommunityIcons name="google" size={24} color="#DB4437" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.socialButton}>
-                <MaterialCommunityIcons name="apple" size={24} color="#000000" />
-              </TouchableOpacity>
-            </View>
-
             <View style={styles.signupContainer}>
               <Text style={styles.signupText}>Don&apos;t have an account? </Text>
               <TouchableOpacity onPress={gotoSignup} disabled={isLoading}>
@@ -419,31 +404,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginVertical: Spacing.lg,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: Colors.light.border,
-  },
-  dividerText: {
-    marginHorizontal: Spacing.md,
-    color: Colors.light.textTertiary,
-    fontSize: FontSize.sm,
-  },
-  socialButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.md,
-  },
-  socialButton: {
-    width: 56,
-    height: 56,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.light.surfaceVariant,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.light.border,
   },
   signupContainer: {
     flexDirection: 'row',
