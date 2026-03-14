@@ -1,9 +1,10 @@
 import { db } from "@/services/firebase";
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import DailyTipsDialog, { checkAndShowTips, resetTipsForTesting } from "@/components/DailyTipsDialog";
 import {
     ActivityIndicator,
     Alert,
@@ -19,7 +20,8 @@ import {
     View
 } from "react-native";
 import { Avatar, useTheme } from "react-native-paper";
-import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
+import { useAppTheme } from '@/context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -27,7 +29,10 @@ const Home = () => {
   const params = useLocalSearchParams();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showTips, setShowTips] = useState(false);
+  const [tipsReady, setTipsReady] = useState(false);
   const theme = useTheme();
+  const { colors: appColors } = useAppTheme();
 
   const getUid = async () => {
     if (params?.uid && typeof params.uid === 'string') {
@@ -84,11 +89,21 @@ const Home = () => {
         Alert.alert("Error", "Failed to load user data. Please try again.");
       } finally {
         setLoading(false);
+        const shouldShowTips = await checkAndShowTips();
+        setTipsReady(true);
+        setShowTips(shouldShowTips);
       }
     };
 
     fetchUserData();
   }, [params]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+      };
+    }, [])
+  );
 
   type AppRoute = 
     | '/mypets' 
@@ -119,14 +134,14 @@ const Home = () => {
   const menuItems = [
     {
       title: "My Pets",
-      icon: <MaterialIcons name="pets" size={28} color={Colors.light.primary} />,
+      icon: <MaterialIcons name="pets" size={28} color={currentColors.primary} />,
       onPress: () => navigateTo('/mypets' as AppRoute),
       color: '#EEF2FF',
       iconBg: '#E0E7FF'
     },
     {
       title: "Symptom Checker",
-      icon: <MaterialIcons name="medical-services" size={28} color={Colors.light.secondary} />,
+      icon: <MaterialIcons name="medical-services" size={28} color={currentColors.secondary} />,
       onPress: () => navigateTo('/symptomchecker' as AppRoute),
       color: '#ECFDF5',
       iconBg: '#D1FAE5'
@@ -140,14 +155,14 @@ const Home = () => {
     },
     {
       title: "Reminders",
-      icon: <MaterialIcons name="notifications" size={28} color={Colors.light.accent} />,
+      icon: <MaterialIcons name="notifications" size={28} color={currentColors.accent} />,
       onPress: () => navigateTo('/reminders' as AppRoute),
       color: '#FFFBEB',
       iconBg: '#FEF3C7'
     },
     {
       title: "Health Records",
-      icon: <MaterialIcons name="folder" size={28} color={Colors.light.info} />,
+      icon: <MaterialIcons name="folder" size={28} color={currentColors.info} />,
       onPress: () => navigateTo('/healthrecords' as AppRoute),
       color: '#EFF6FF',
       iconBg: '#DBEAFE'
@@ -165,14 +180,14 @@ const Home = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={currentColors.primary} />
       </View>
     );
   }
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.light.background} />
+      <StatusBar barStyle="dark-content" backgroundColor={currentColors.background} />
       
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
@@ -180,16 +195,20 @@ const Home = () => {
             <Text style={styles.greeting}>Good Morning,</Text>
             <Text style={styles.userName}>{name}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/vets/myprofile')}>
+          <TouchableOpacity onPress={() => router.push('/settings')} onLongPress={async () => {
+            await resetTipsForTesting();
+            setShowTips(true);
+            Alert.alert('Tips Reset', 'Tips dialog will appear');
+          }}>
             <View style={styles.avatarContainer}>
               <Avatar.Icon 
                 size={50} 
                 icon="account" 
                 style={styles.avatar} 
-                color={Colors.light.primary}
+                color={currentColors.primary}
               />
               <View style={styles.avatarBadge}>
-                <MaterialIcons name="notifications" size={12} color={Colors.light.white} />
+                <MaterialIcons name="notifications" size={12} color={currentColors.white} />
               </View>
             </View>
           </TouchableOpacity>
@@ -203,7 +222,7 @@ const Home = () => {
             </Text>
             <TouchableOpacity style={styles.welcomeButton}>
               <Text style={styles.welcomeButtonText}>View Pets</Text>
-              <MaterialIcons name="arrow-forward" size={18} color={Colors.light.white} />
+              <MaterialIcons name="arrow-forward" size={18} color={currentColors.white} />
             </TouchableOpacity>
           </View>
           <View style={styles.welcomeImageContainer}>
@@ -244,7 +263,7 @@ const Home = () => {
           
           <View style={styles.reminderCard}>
             <View style={styles.reminderIconContainer}>
-              <MaterialCommunityIcons name="needle" size={24} color={Colors.light.primary} />
+              <MaterialCommunityIcons name="needle" size={24} color={currentColors.primary} />
             </View>
             <View style={styles.reminderContent}>
               <Text style={styles.reminderTitle}>Vaccination Due</Text>
@@ -258,7 +277,7 @@ const Home = () => {
 
           <View style={styles.reminderCard}>
             <View style={[styles.reminderIconContainer, { backgroundColor: '#ECFDF5' }]}>
-              <MaterialCommunityIcons name="tooth" size={24} color={Colors.light.secondary} />
+              <MaterialCommunityIcons name="tooth" size={24} color={currentColors.secondary} />
             </View>
             <View style={styles.reminderContent}>
               <Text style={styles.reminderTitle}>Dental Checkup</Text>
@@ -266,7 +285,7 @@ const Home = () => {
               <Text style={styles.reminderTime}>Tomorrow, 10:00 AM</Text>
             </View>
             <View style={[styles.reminderStatus, { backgroundColor: '#ECFDF5' }]}>
-              <View style={[styles.statusDot, { backgroundColor: Colors.light.secondary }]} />
+              <View style={[styles.statusDot, { backgroundColor: currentColors.secondary }]} />
             </View>
           </View>
         </View>
@@ -275,7 +294,7 @@ const Home = () => {
           <Text style={styles.tipsSectionTitle}>Pet Care Tips</Text>
           <View style={styles.tipCard}>
             <View style={styles.tipIconContainer}>
-              <MaterialIcons name="lightbulb" size={24} color={Colors.light.accent} />
+              <MaterialIcons name="lightbulb" size={24} color={currentColors.accent} />
             </View>
             <View style={styles.tipContent}>
               <Text style={styles.tipTitle}>Stay Hydrated</Text>
@@ -286,6 +305,11 @@ const Home = () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <DailyTipsDialog
+        visible={tipsReady && showTips && !loading}
+        onClose={() => setShowTips(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -293,18 +317,18 @@ const Home = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: currentColors.background,
   },
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: currentColors.background,
     paddingHorizontal: Spacing.md,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
+    backgroundColor: currentColors.background,
   },
   header: {
     flexDirection: 'row',
@@ -315,13 +339,13 @@ const styles = StyleSheet.create({
   },
   greeting: {
     fontSize: FontSize.md,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     fontWeight: FontWeight.medium,
   },
   userName: {
     fontSize: FontSize.xxl,
     fontWeight: FontWeight.bold,
-    color: Colors.light.text,
+    color: currentColors.text,
     marginTop: 2,
   },
   avatarContainer: {
@@ -334,17 +358,17 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: currentColors.primary,
     borderRadius: BorderRadius.full,
     width: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: Colors.light.white,
+    borderColor: currentColors.white,
   },
   welcomeCard: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: currentColors.primary,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     flexDirection: 'row',
@@ -359,7 +383,7 @@ const styles = StyleSheet.create({
   welcomeTitle: {
     fontSize: FontSize.xl,
     fontWeight: FontWeight.bold,
-    color: Colors.light.white,
+    color: currentColors.white,
     marginBottom: Spacing.xs,
   },
   welcomeText: {
@@ -378,7 +402,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   welcomeButtonText: {
-    color: Colors.light.white,
+    color: currentColors.white,
     fontWeight: FontWeight.semibold,
     fontSize: FontSize.sm,
     marginRight: Spacing.xs,
@@ -405,10 +429,10 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.light.text,
+    color: currentColors.text,
   },
   seeAllText: {
-    color: Colors.light.primary,
+    color: currentColors.primary,
     fontWeight: FontWeight.semibold,
     fontSize: FontSize.sm,
   },
@@ -436,14 +460,14 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
-    color: Colors.light.text,
+    color: currentColors.text,
     textAlign: 'center',
   },
   section: {
     marginBottom: Spacing.lg,
   },
   reminderCard: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: currentColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     flexDirection: 'row',
@@ -466,17 +490,17 @@ const styles = StyleSheet.create({
   reminderTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
-    color: Colors.light.text,
+    color: currentColors.text,
     marginBottom: 2,
   },
   reminderText: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     marginBottom: 2,
   },
   reminderTime: {
     fontSize: FontSize.xs,
-    color: Colors.light.textTertiary,
+    color: currentColors.textTertiary,
   },
   reminderStatus: {
     width: 12,
@@ -490,7 +514,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: BorderRadius.full,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: currentColors.primary,
   },
   tipsSection: {
     marginBottom: Spacing.lg,
@@ -498,11 +522,11 @@ const styles = StyleSheet.create({
   tipsSectionTitle: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
-    color: Colors.light.text,
+    color: currentColors.text,
     marginBottom: Spacing.md,
   },
   tipCard: {
-    backgroundColor: Colors.light.surface,
+    backgroundColor: currentColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     flexDirection: 'row',
@@ -524,12 +548,12 @@ const styles = StyleSheet.create({
   tipTitle: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
-    color: Colors.light.text,
+    color: currentColors.text,
     marginBottom: 2,
   },
   tipText: {
     fontSize: FontSize.sm,
-    color: Colors.light.textSecondary,
+    color: currentColors.textSecondary,
     lineHeight: 20,
   },
 });

@@ -7,7 +7,7 @@ type VetRoute =
   | '/vets/home'
   | '/vets/appointments'
   | '/vets/mypatients'
-  | '/vets/myprofile'
+  | '/settings'
   | '/vets/credentials'
 
 type VetNavItem = {
@@ -49,7 +49,7 @@ const VetBottomNavigationBar = ({ show }: VetBottomNavigationBarProps) => {
     { 
       name: 'Profile', 
       icon: 'account', 
-      route: '/vets/myprofile' as const
+      route: '/settings' as const
     }
   ];
 

@@ -11,7 +11,7 @@ import {
   useColorScheme
 } from 'react-native';
 import { useTheme } from 'react-native-paper';
-import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 
 type AppRoute = 
   | '/home'
@@ -54,7 +54,7 @@ const BottomNavigationBar = () => {
       name: 'Home', 
       icon: 'home', 
       route: '/home',
-      color: Colors.light.primary
+      color: currentColors.primary
     },
     { 
       name: 'Pets', 
@@ -89,7 +89,7 @@ const BottomNavigationBar = () => {
   return (
     <View style={styles.container}>
       <View style={[styles.navBar, {
-        backgroundColor: isDark ? Colors.dark.surface : Colors.light.white,
+        backgroundColor: currentColors.surface,
       }]}>
         {navItems.map((item) => {
           const isActive = activeRoute === item.route.split('/').pop();
@@ -109,13 +109,13 @@ const BottomNavigationBar = () => {
                   <MaterialCommunityIcons
                     name={item.icon as any}
                     size={22}
-                    color={isActive ? item.color : isDark ? Colors.dark.textTertiary : Colors.light.textTertiary}
+                    color={isActive ? item.color : currentColors.textTertiary}
                   />
                 </View>
                 <Text style={[
                   styles.navText,
                   { 
-                    color: isActive ? item.color : isDark ? Colors.dark.textTertiary : Colors.light.textTertiary,
+                    color: isActive ? item.color : currentColors.textTertiary,
                     fontWeight: isActive ? FontWeight.semibold : FontWeight.regular
                   }
                 ]}>
