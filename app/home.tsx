@@ -1,9 +1,10 @@
 import { db } from "@/services/firebase";
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useFocusEffect } from "expo-router";
 import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import DailyTipsDialog, { checkAndShowTips, resetTipsForTesting } from "@/components/DailyTipsDialog";
 import {
     ActivityIndicator,
     Alert,
@@ -28,6 +29,8 @@ const Home = () => {
   const params = useLocalSearchParams();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [showTips, setShowTips] = useState(false);
+  const [tipsReady, setTipsReady] = useState(false);
   const theme = useTheme();
   const { colors: appColors } = useAppTheme();
 
@@ -86,11 +89,21 @@ const Home = () => {
         Alert.alert("Error", "Failed to load user data. Please try again.");
       } finally {
         setLoading(false);
+        const shouldShowTips = await checkAndShowTips();
+        setTipsReady(true);
+        setShowTips(shouldShowTips);
       }
     };
 
     fetchUserData();
   }, [params]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+      };
+    }, [])
+  );
 
   type AppRoute = 
     | '/mypets' 
@@ -182,7 +195,11 @@ const Home = () => {
             <Text style={styles.greeting}>Good Morning,</Text>
             <Text style={styles.userName}>{name}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push('/settings')}>
+          <TouchableOpacity onPress={() => router.push('/settings')} onLongPress={async () => {
+            await resetTipsForTesting();
+            setShowTips(true);
+            Alert.alert('Tips Reset', 'Tips dialog will appear');
+          }}>
             <View style={styles.avatarContainer}>
               <Avatar.Icon 
                 size={50} 
@@ -288,6 +305,11 @@ const Home = () => {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+
+      <DailyTipsDialog
+        visible={tipsReady && showTips && !loading}
+        onClose={() => setShowTips(false)}
+      />
     </SafeAreaView>
   );
 };
