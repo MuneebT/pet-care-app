@@ -16,6 +16,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, ThemeName, currentColors } from '@/constants/theme';
+import { resetTipsShownForSession } from '@/components/DailyTipsDialog';
 
 const themeOptions: { name: ThemeName; color: string; label: string }[] = [
   { name: 'blue', color: '#3B82F6', label: 'Blue' },
@@ -275,6 +276,7 @@ export default function PetOwnerSettings() {
                 text: 'Logout',
                 style: 'destructive',
                 onPress: async () => {
+                  await resetTipsShownForSession();
                   await auth.signOut();
                   router.replace('/login');
                 },

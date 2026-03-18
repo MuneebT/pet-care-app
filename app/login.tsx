@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import React, { useRef, useState } from 'react';
+import { resetTipsShownForSession } from '@/components/DailyTipsDialog';
 import {
   ActivityIndicator,
   Alert,
@@ -84,6 +85,8 @@ const Login = () => {
       console.log('✅ Authentication successful, UID:', user.uid);
 
       await AsyncStorage.setItem('userId', user.uid);
+      // Ensure daily tips can show once right after login.
+      await resetTipsShownForSession();
       
       const userRole = await getCurrentUserRole(user.uid);
       console.log('👥 User role:', userRole);
@@ -91,6 +94,7 @@ const Login = () => {
       if (!userRole) {
         console.error('❌ No role found for user');
         Alert.alert('Error', 'Your account is not properly configured');
+        await resetTipsShownForSession();
         await auth.signOut();
         return;
       }
