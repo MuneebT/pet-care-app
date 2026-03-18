@@ -71,6 +71,14 @@ export const markTipsAsShownForSession = async (): Promise<void> => {
   }
 };
 
+export const resetTipsShownForSession = async (): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(STORAGE_KEYS.TIPS_SHOWN_FOR_SESSION, 'false');
+  } catch (error) {
+    console.error('Error resetting tips shown-for-session:', error);
+  }
+};
+
 export const resetTipsForTesting = async (): Promise<void> => {
   try {
     const today = new Date().toDateString();
