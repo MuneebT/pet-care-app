@@ -5,6 +5,9 @@ import {
   Spacing,
   currentColors,
 } from "@/constants/theme";
+import { db } from "@/services/firebase";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import axios from "axios";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
@@ -1104,7 +1107,7 @@ interface PredictionResult {
 
 const Symptomchecker = () => {
   const theme = useTheme();
-  const params = useLocalSearchParams();
+  const params = useLocalSearchParams<{ userId?: string; uid?: string }>();
 
   const [animalType, setAnimalType] = useState<"Dog" | "Cat">("Dog");
   const [sex, setSex] = useState<"Male" | "Female">("Male");
@@ -1145,6 +1148,18 @@ const Symptomchecker = () => {
     setSelectedSymptoms((prev) => prev.filter((s) => s !== symptom));
   }, []);
 
+  const getUserId = async (): Promise<string | null> => {
+    if (params?.userId) return String(params.userId);
+    if (params?.uid) return String(params.uid);
+    try {
+      const storedUid = await AsyncStorage.getItem("userId");
+      return storedUid;
+    } catch (error) {
+      console.error("Error getting user ID in symptomchecker:", error);
+      return null;
+    }
+  };
+
   const handlePredict = async () => {
     if (!breed.trim()) {
       Alert.alert("Validation Error", "Please enter the breed");
@@ -1183,6 +1198,12 @@ const Symptomchecker = () => {
         Alert.alert("Validation Error", "Body temperature must be between 35°C and 43°C, or leave empty for default (38.5°C)");
         return;
       }
+    }
+
+    const uid = await getUserId();
+    if (!uid) {
+      Alert.alert("Error", "User not authenticated. Please log in again.");
+      return;
     }
 
     setIsLoading(true);
@@ -1237,9 +1258,13 @@ const Symptomchecker = () => {
           const apiData = response.data;
           console.log("API Response:", JSON.stringify(apiData, null, 2));
 
-          const mappedResult = {
+          const rawConfidence = apiData.confidence ?? 0;
+          const normalizedConfidence =
+            rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
+
+          const mappedResult: PredictionResult = {
             predicted_disease: apiData.prediction || apiData.predicted_disease || "Unknown",
-            confidence: apiData.confidence || 0,
+            confidence: normalizedConfidence,
             recommendations: apiData.data?.recommendations || [
               "Consult with a veterinarian for proper diagnosis",
               "Monitor your pet's symptoms closely",
@@ -1250,6 +1275,35 @@ const Symptomchecker = () => {
 
           setResult(mappedResult);
           setShowResultModal(true);
+
+          try {
+            const healthRecordRef = collection(db, "users", uid, "healthRecords");
+            await addDoc(healthRecordRef, {
+              animalType,
+              sex,
+              breed: breed.trim(),
+              age: ageNum,
+              weight: weightNum,
+              bodyTemperature: bodyTemp,
+              selectedSymptoms,
+              flags: {
+                appetiteLoss,
+                vomiting,
+                diarrhea,
+                coughing,
+                laboredBreathing,
+              },
+              prediction: mappedResult.predicted_disease,
+              confidence: mappedResult.confidence,
+              severity: mappedResult.severity,
+              recommendations: mappedResult.recommendations,
+              source: "symptomchecker",
+              createdAt: serverTimestamp(),
+            });
+          } catch (saveError) {
+            console.error("Error saving prediction to health records:", saveError);
+          }
+
           apiSuccess = true;
           break;
         } catch (error: any) {
