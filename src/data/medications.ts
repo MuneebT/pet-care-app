@@ -1678,8 +1678,166 @@ export const originalTuples: MedicineInfo[] = [
   medicineClass,
 }));
 
+// For your ImageChecker model, classes follow names like:
+// "Cat-Alopecia", "Dog-Ringworm", etc. Your medicine dataset is bucket-based
+// ("Skin Condition", "Ringworm", ...). This mapping lets us return a dedicated
+// treatment list per each image class by translating to the correct bucket and
+// (optionally) filtering medicines to be more class-specific.
+const imageClassToTreatmentBucket: Record<
+  string,
+  { bucket: string | null; whitelist?: string[] }
+> = {
+  // Cat
+  "cat-alopecia": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Apoquel (Oclacitinib)",
+      "Cytopoint (Lokivetmab)",
+      "Antihistamines (Chlorpheniramine, Cetirizine)",
+    ],
+  },
+  "cat-dental infection": {
+    bucket: "Skin Condition",
+    whitelist: ["Cephalexin", "Clindamycin"],
+  },
+  "cat-ear mites": {
+    bucket: "Skin Condition",
+    whitelist: ["Ivermectin", "Selamectin (Revolution)"],
+  },
+  "cat-eye infection": { bucket: "Conjunctivitis" },
+  "cat-flea allergy": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Antihistamines (Chlorpheniramine, Cetirizine)",
+      "Fipronil",
+    ],
+  },
+  "cat-fungal infection": { bucket: "Fungal Infection" },
+  "cat-healthy": { bucket: null },
+  "cat-miliary dermatitis": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Apoquel (Oclacitinib)",
+      "Cytopoint (Lokivetmab)",
+      "Antihistamines (Chlorpheniramine, Cetirizine)",
+    ],
+  },
+  "cat-ringworm": { bucket: "Ringworm" },
+  "cat-scabies": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Ivermectin",
+      "Selamectin (Revolution)",
+      "Fipronil",
+    ],
+  },
+
+  // Dog
+  "dog-bacterial dermatosis": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Cephalexin",
+      "Clindamycin",
+      "Chlorhexidine shampoo",
+    ],
+  },
+  "dog-demodicosis": {
+    bucket: "Skin Condition",
+    whitelist: ["Ivermectin", "Selamectin (Revolution)"],
+  },
+  "dog-dental infection": {
+    bucket: "Skin Condition",
+    whitelist: ["Cephalexin", "Clindamycin"],
+  },
+  "dog-eye infection": { bucket: "Conjunctivitis" },
+  "dog-flea allergy": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Antihistamines (Chlorpheniramine, Cetirizine)",
+      "Fipronil",
+    ],
+  },
+  "dog-fungal infection": { bucket: "Fungal Infection" },
+  "dog-healthy": { bucket: null },
+  "dog-hypersensitivity dermatitis": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Apoquel (Oclacitinib)",
+      "Cytopoint (Lokivetmab)",
+      "Antihistamines (Chlorpheniramine, Cetirizine)",
+    ],
+  },
+  "dog-mange": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Ivermectin",
+      "Selamectin (Revolution)",
+      "Lime sulfur dip",
+    ],
+  },
+  "dog-ringworm": { bucket: "Ringworm" },
+  "dog-scabies": {
+    bucket: "Skin Condition",
+    whitelist: [
+      "Ivermectin",
+      "Selamectin (Revolution)",
+      "Fipronil",
+    ],
+  },
+};
+
+function getMedicinesForBucket(bucketDisease: string): MedicineInfo[] {
+  const bucketNormalized = bucketDisease.trim().toLowerCase();
+
+  const fromTuples = originalTuples.filter(
+    (item) => item.disease.trim().toLowerCase() === bucketNormalized,
+  );
+
+  const withAttributes: MedicineInfo[] = fromTuples.map((item) => {
+    const key = `${bucketDisease}|||${item.medicine}`;
+    const attributes = medicineAttributes[key];
+    return attributes ? { ...item, attributes } : item;
+  });
+
+  const extraFromAttributes: MedicineInfo[] = Object.entries(medicineAttributes)
+    .filter(([key]) => key.startsWith(`${bucketDisease}|||`))
+    .map(([key, attributes]) => {
+      const [, medicine] = key.split("|||");
+      const alreadyIncluded = withAttributes.some(
+        (m) => m.medicine.toLowerCase() === medicine.toLowerCase(),
+      );
+      if (alreadyIncluded) return null;
+      return {
+        disease: bucketDisease,
+        medicine,
+        attributes,
+      } as MedicineInfo;
+    })
+    .filter((v): v is MedicineInfo => Boolean(v));
+
+  return [...withAttributes, ...extraFromAttributes];
+}
+
 export function getMedicinesForDisease(disease: string): MedicineInfo[] {
   const normalized = disease.trim().toLowerCase();
+
+  const mapped = imageClassToTreatmentBucket[normalized];
+  if (mapped) {
+    if (!mapped.bucket) return [];
+
+    const medicines = getMedicinesForBucket(mapped.bucket);
+    const whitelist = mapped.whitelist?.map((w) => w.toLowerCase()) ?? [];
+
+    const filtered =
+      whitelist.length > 0
+        ? medicines.filter((m) =>
+            whitelist.includes(m.medicine.toLowerCase()),
+          )
+        : medicines;
+
+    // Return medicines but with disease field set to the original class name.
+    return filtered.map((m) => ({ ...m, disease }));
+  }
 
   const fromTuples = originalTuples.filter(
     (item) => item.disease.trim().toLowerCase() === normalized,

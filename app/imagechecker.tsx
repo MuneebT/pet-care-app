@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Modal,
   ScrollView,
   StyleSheet,
   Text,
@@ -38,9 +39,21 @@ const Imagechecker = () => {
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictionResult | null>(null);
+  const [showResultModal, setShowResultModal] = useState(false);
+  const [showTreatment, setShowTreatment] = useState(false);
+  const [animalChoice, setAnimalChoice] = useState<"cat" | "dog">("cat");
+  const [catTop2, setCatTop2] = useState<PredictionResult | null>(null);
+  const [dogTop2, setDogTop2] = useState<PredictionResult | null>(null);
+  const [animalScores, setAnimalScores] = useState<{
+    cat: number;
+    dog: number;
+    predicted: "cat" | "dog";
+  } | null>(null);
 
   const scrollRef = useRef<ScrollView>(null);
   const [shouldScrollToResults, setShouldScrollToResults] = useState(false);
+
+  const API_URL = "http://192.168.0.104:5000/predict";
 
   useEffect(() => {
     // When analysis result appears, scroll to the TOP of the prediction card
@@ -50,33 +63,12 @@ const Imagechecker = () => {
   }, [result]);
 
   const mapImageDiseaseToTreatmentKey = (disease: string): string | null => {
-    const d = disease.toLowerCase();
-
-    // Image model classes follow patterns like: "Dog-Fungal Infection", "Cat-Ringworm", etc.
-    if (d.includes("healthy")) return null;
-    if (d.includes("fungal")) return "Fungal Infection";
-    if (d.includes("ringworm")) return "Ringworm";
-
-    // Eye infections use the same medicine mapping as conjunctivitis.
-    if (d.includes("eye")) return "Conjunctivitis";
-
-    // Most skin/parasite-related image classes are covered by the broad "Skin Condition" bucket.
-    if (
-      d.includes("skin") ||
-      d.includes("alopecia") ||
-      d.includes("dermatitis") ||
-      d.includes("scabies") ||
-      d.includes("mites") ||
-      d.includes("mange") ||
-      d.includes("flea") ||
-      d.includes("miliary") ||
-      d.includes("hypersensitivity")
-    ) {
-      return "Skin Condition";
-    }
-
-    // Fallback to skin bucket so the UI always shows something useful.
-    return "Skin Condition";
+    // "Healthy" should not show treatment.
+    if (disease.toLowerCase().includes("healthy")) return null;
+    // Use the image model class name as the treatment key.
+    // `getMedicinesForDisease()` now translates class names to the correct
+    // bucket + returns a class-specific medicine subset.
+    return disease;
   };
 
   const top1TreatmentKey = useMemo(() => {
@@ -110,6 +102,7 @@ const Imagechecker = () => {
     if (!res.canceled) {
       setImage(res.assets[0].uri);
       setResult(null);
+      setShowTreatment(false);
       // Scroll so the Analyze button (below preview) becomes visible.
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
@@ -136,6 +129,7 @@ const Imagechecker = () => {
     if (!res.canceled) {
       setImage(res.assets[0].uri);
       setResult(null);
+      setShowTreatment(false);
       // Scroll so the Analyze button (below preview) becomes visible.
       setTimeout(() => {
         scrollRef.current?.scrollToEnd({ animated: true });
@@ -147,23 +141,75 @@ const Imagechecker = () => {
     if (!image || loading) return;
     setLoading(true);
 
-    // Temporary fake response (replace with API later)
-    setTimeout(() => {
-      setResult({
-        top1: { disease: "Dog-Fungal Infection", confidence: 85 },
-        top2: { disease: "Dog-Ringworm", confidence: 72 },
+    try {
+      const formData = new FormData();
+      formData.append("image", {
+        uri: image,
+        name: "pet-image.jpg",
+        type: "image/jpeg",
+      } as any);
+      formData.append("animal_type", animalChoice);
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
+        headers: {
+          // Do NOT set Content-Type manually; RN will set the correct boundary.
+        },
       });
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`API error: ${response.status}. ${text}`);
+      }
+
+      const data = await response.json();
+
+      const overallResult: PredictionResult = {
+        top1: {
+          disease: String(data?.top1?.disease ?? ""),
+          confidence: Number(data?.top1?.confidence ?? 0),
+        },
+        top2: {
+          disease: String(data?.top2?.disease ?? ""),
+          confidence: Number(data?.top2?.confidence ?? 0),
+        },
+      };
+
+      const predictedAnimal: "cat" | "dog" =
+        data?.animal?.predicted === "dog" ? "dog" : "cat";
+
+      setAnimalChoice(predictedAnimal);
+      if (data?.animal?.cat != null && data?.animal?.dog != null) {
+        setAnimalScores({
+          cat: Number(data?.animal?.cat ?? 0),
+          dog: Number(data?.animal?.dog ?? 0),
+          predicted: predictedAnimal,
+        });
+      }
+
+      setResult(overallResult);
+      setShowResultModal(false); // Never show modal
+      setShowTreatment(false);
+    } catch (err: any) {
+      console.log("Analyze error:", err);
+      Alert.alert("Analyze failed", err?.message ? String(err.message) : "Please try again.");
+    } finally {
       setLoading(false);
-    }, 2000);
+    }
   };
 
+  const isHealthy = result?.top1.disease.toLowerCase().includes("healthy");
+  const isEyeOrDental = result?.top1.disease.toLowerCase().includes("eye") || result?.top1.disease.toLowerCase().includes("dental");
+
   return (
-    <ScrollView
-      ref={scrollRef}
-      style={styles.container}
-      contentContainerStyle={styles.contentContainer}
-      showsVerticalScrollIndicator={false}
-    >
+    <>
+      <ScrollView
+        ref={scrollRef}
+        style={styles.container}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+      >
       <View style={styles.bgCircle1} pointerEvents="none" />
       <View style={styles.bgCircle2} pointerEvents="none" />
 
@@ -252,6 +298,61 @@ const Imagechecker = () => {
           )}
         </View>
 
+        <View style={{ marginBottom: Spacing.md }}>
+          <Text style={[styles.sectionTitle, { fontSize: FontSize.md, marginBottom: Spacing.sm }]}>Predict disease for:</Text>
+          <View style={styles.animalChoiceRow}>
+            <TouchableOpacity
+              style={[
+                styles.animalChoiceButton,
+                animalChoice === "cat"
+                  ? {
+                      borderColor: currentColors.primary,
+                      backgroundColor: `${currentColors.primary}12`,
+                    }
+                  : { borderColor: currentColors.border },
+              ]}
+              onPress={() => setAnimalChoice("cat")}
+            >
+              <MaterialCommunityIcons name="cat-hair" size={24} color={animalChoice === "cat" ? currentColors.primary : currentColors.textSecondary} style={{ marginRight: Spacing.sm }} />
+              <Text
+                style={[
+                  styles.animalChoiceText,
+                  animalChoice === "cat"
+                    ? { color: currentColors.primary, fontWeight: "bold" }
+                    : { color: currentColors.textSecondary },
+                ]}
+              >
+                Cat
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.animalChoiceButton,
+                animalChoice === "dog"
+                  ? {
+                      borderColor: currentColors.secondary,
+                      backgroundColor: `${currentColors.secondary}12`,
+                    }
+                  : { borderColor: currentColors.border },
+              ]}
+              onPress={() => setAnimalChoice("dog")}
+            >
+              <MaterialCommunityIcons name="dog" size={24} color={animalChoice === "dog" ? currentColors.secondary : currentColors.textSecondary} style={{ marginRight: Spacing.sm }} />
+              <Text
+                style={[
+                  styles.animalChoiceText,
+                  animalChoice === "dog"
+                    ? { color: currentColors.secondary, fontWeight: "bold" }
+                    : { color: currentColors.textSecondary },
+                ]}
+              >
+                Dog
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <TouchableOpacity
           style={[
             styles.analyzeButton,
@@ -291,7 +392,15 @@ const Imagechecker = () => {
           >
             <Text style={styles.resultTitle}>Most possible disease</Text>
 
-            <View style={styles.predictionBlock}>
+            {isHealthy ? (
+              <View style={{ backgroundColor: `${currentColors.primary}20`, padding: Spacing.md, borderRadius: BorderRadius.md, alignItems: 'center', marginVertical: Spacing.md }}>
+                <MaterialCommunityIcons name="check-decagram" size={64} color={currentColors.primary} />
+                <Text style={{ fontSize: FontSize.lg, fontWeight: 'bold', color: currentColors.primary, marginTop: Spacing.sm }}>Great News!</Text>
+                <Text style={{ color: currentColors.text, textAlign: 'center', marginTop: Spacing.xs, fontSize: FontSize.md }}>Your pet appears to be Healthy (Confidence: {result.top1.confidence.toFixed(2)}%)</Text>
+              </View>
+            ) : (
+            <View style={{ width: '100%' }}>
+              <View style={styles.predictionBlock}>
               <View style={styles.predictionRankRow}>
                 <View
                   style={[
@@ -320,6 +429,7 @@ const Imagechecker = () => {
               </View>
             </View>
 
+            {result.top2.disease !== "Uncertain" && !isEyeOrDental && (
             <View style={styles.predictionBlock}>
               <Text style={styles.secondLabel}>Also have signs of</Text>
               <View style={styles.predictionRankRow}>
@@ -349,9 +459,32 @@ const Imagechecker = () => {
                 />
               </View>
             </View>
+            )}
+            </View>
+            )}
           </View>
 
+          {/* Treatment Toggle Button */}
+          {!isHealthy && (
+          <TouchableOpacity
+            style={[styles.analyzeButton, { backgroundColor: currentColors.secondary, marginTop: Spacing.sm, marginBottom: Spacing.md }]}
+            onPress={() => setShowTreatment(!showTreatment)}
+            activeOpacity={0.9}
+          >
+            <MaterialCommunityIcons
+              name={showTreatment ? "chevron-up" : "medical-bag"}
+              size={18}
+              color={currentColors.white}
+              style={{ marginRight: Spacing.sm }}
+            />
+            <Text style={styles.analyzeButtonText}>
+              {showTreatment ? "Hide Treatment Recommendations" : "Show Treatment Recommendations"}
+            </Text>
+          </TouchableOpacity>
+          )}
+
           {/* Treatment section */}
+          {!isHealthy && showTreatment && (
           <View style={styles.treatmentCard}>
             <Text style={styles.treatmentTitle}>Treatment</Text>
 
@@ -361,18 +494,17 @@ const Imagechecker = () => {
                   For: {result.top1.disease}
                 </Text>
                 {top1Medicines.length ? (
-                  top1Medicines.slice(0, 3).map((m) => (
-                    <View key={`${m.disease}-${m.medicine}`} style={styles.medicineRow}>
-                      <Text style={styles.medicineName}>• {m.medicine}</Text>
-                      {m.attributes ? (
-                        <Text style={styles.medicineMeta}>
-                          Duration: {m.attributes.Treatment_Duration_Days} • Route:{" "}
-                          {m.attributes.Route_of_Administration}
-                        </Text>
-                      ) : null}
+                  top1Medicines.slice(0, 3).map((m, i) => (
+                    <View key={`${m.disease}-${m.medicine}-${i}`} style={styles.medicineRow}>
+                      <Text style={styles.medicineName}>
+                        • Give {m.medicine}{' '}
+                        {m.attributes?.Route_of_Administration ? `via ${m.attributes.Route_of_Administration.toLowerCase()}` : ''}{' '}
+                        {m.attributes?.Dosage_Frequency ? m.attributes.Dosage_Frequency.toLowerCase() : ''}{' '}
+                        {m.attributes?.Treatment_Duration_Days ? `for ${m.attributes.Treatment_Duration_Days.toLowerCase()}` : ''}.
+                      </Text>
                       {m.attributes?.Side_Effects ? (
-                        <Text style={styles.medicineMeta2}>
-                          Side effects: {m.attributes.Side_Effects}
+                        <Text style={[styles.medicineMeta, { color: currentColors.secondary, fontStyle: 'italic', marginTop: 4 }]}>
+                          ⚠️ Watch for: {m.attributes.Side_Effects}
                         </Text>
                       ) : null}
                     </View>
@@ -389,19 +521,23 @@ const Imagechecker = () => {
               </Text>
             )}
 
-            {top2TreatmentKey && top2TreatmentKey !== top1TreatmentKey ? (
+            {top2TreatmentKey && result?.top2.disease !== result?.top1.disease ? (
               <View style={styles.treatmentGroup}>
                 <Text style={styles.treatmentSubtitle}>
                   Also consider for: {result.top2.disease}
                 </Text>
                 {top2Medicines.length ? (
-                  top2Medicines.slice(0, 3).map((m) => (
-                    <View key={`${m.disease}-${m.medicine}`} style={styles.medicineRow}>
-                      <Text style={styles.medicineName}>• {m.medicine}</Text>
-                      {m.attributes ? (
-                        <Text style={styles.medicineMeta}>
-                          Duration: {m.attributes.Treatment_Duration_Days} • Route:{" "}
-                          {m.attributes.Route_of_Administration}
+                  top2Medicines.slice(0, 3).map((m, i) => (
+                    <View key={`${m.disease}-${m.medicine}-${i}`} style={styles.medicineRow}>
+                      <Text style={styles.medicineName}>
+                        • Give {m.medicine}{' '}
+                        {m.attributes?.Route_of_Administration ? `via ${m.attributes.Route_of_Administration.toLowerCase()}` : ''}{' '}
+                        {m.attributes?.Dosage_Frequency ? m.attributes.Dosage_Frequency.toLowerCase() : ''}{' '}
+                        {m.attributes?.Treatment_Duration_Days ? `for ${m.attributes.Treatment_Duration_Days.toLowerCase()}` : ''}.
+                      </Text>
+                      {m.attributes?.Side_Effects ? (
+                        <Text style={[styles.medicineMeta, { color: currentColors.secondary, fontStyle: 'italic', marginTop: 4 }]}>
+                          ⚠️ Watch for: {m.attributes.Side_Effects}
                         </Text>
                       ) : null}
                     </View>
@@ -414,9 +550,198 @@ const Imagechecker = () => {
               </View>
             ) : null}
           </View>
+          )}
         </>
       )}
-    </ScrollView>
+      </ScrollView>
+
+      <Modal
+        visible={showResultModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowResultModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: currentColors.surface }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: currentColors.text }]}>
+                Prediction & Treatment
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowResultModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <Text style={{ color: currentColors.primary, fontSize: 18, fontWeight: "bold" }}>
+                  ✕
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView
+              style={{ flex: 1 }}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.modalBody}
+            >
+              {result ? (
+                <>
+                  <View style={styles.resultCard}>
+                    <Text style={styles.resultTitle}>Most possible disease</Text>
+
+                    <View style={styles.predictionBlock}>
+                      <View style={styles.predictionRankRow}>
+                        <View
+                          style={[
+                            styles.rankBadge,
+                            { backgroundColor: `${currentColors.primary}15` },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.rankBadgeText,
+                              { color: currentColors.primary },
+                            ]}
+                          >
+                            🥇
+                          </Text>
+                        </View>
+                        <View style={styles.predictionBody}>
+                          <Text style={styles.diseaseText}>{result.top1.disease}</Text>
+                          <Text style={styles.confidenceText}>
+                            {result.top1.confidence.toFixed(2)}%
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.confidenceTrack}>
+                        <View
+                          style={[
+                            styles.confidenceFill,
+                            {
+                              width: `${Math.max(0, Math.min(100, result.top1.confidence))}%`,
+                              backgroundColor: currentColors.primary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.predictionBlock}>
+                      <Text style={styles.secondLabel}>Also have signs of</Text>
+                      <View style={styles.predictionRankRow}>
+                        <View
+                          style={[
+                            styles.rankBadge,
+                            { backgroundColor: `${currentColors.secondary}15` },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.rankBadgeText,
+                              { color: currentColors.secondary },
+                            ]}
+                          >
+                            🥈
+                          </Text>
+                        </View>
+                        <View style={styles.predictionBody}>
+                          <Text style={styles.diseaseText}>{result.top2.disease}</Text>
+                          <Text style={styles.confidenceText}>
+                            {result.top2.confidence.toFixed(2)}%
+                          </Text>
+                        </View>
+                      </View>
+                      <View style={styles.confidenceTrack}>
+                        <View
+                          style={[
+                            styles.confidenceFill,
+                            {
+                              width: `${Math.max(0, Math.min(100, result.top2.confidence))}%`,
+                              backgroundColor: currentColors.secondary,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.treatmentCard}>
+                    <Text style={styles.treatmentTitle}>Treatment</Text>
+
+                    {top1TreatmentKey ? (
+                      <View style={styles.treatmentGroup}>
+                        <Text style={styles.treatmentSubtitle}>
+                          For: {result.top1.disease}
+                        </Text>
+                        {top1Medicines.length ? (
+                          top1Medicines.slice(0, 3).map((m) => (
+                            <View
+                              key={`${m.disease}-${m.medicine}`}
+                              style={styles.medicineRow}
+                            >
+                              <Text style={styles.medicineName}>• {m.medicine}</Text>
+                              {m.attributes ? (
+                                <Text style={styles.medicineMeta}>
+                                  Duration: {m.attributes.Treatment_Duration_Days} • Route:{" "}
+                                  {m.attributes.Route_of_Administration}
+                                </Text>
+                              ) : null}
+                              {m.attributes?.Side_Effects ? (
+                                <Text style={styles.medicineMeta2}>
+                                  Side effects: {m.attributes.Side_Effects}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.fallbackText}>
+                            No specific treatment data found for this disease. Please consult a veterinarian.
+                          </Text>
+                        )}
+                      </View>
+                    ) : (
+                      <Text style={styles.fallbackText}>
+                        This prediction looks healthy, so no treatment recommendations are shown.
+                      </Text>
+                    )}
+
+                    {top2TreatmentKey && result?.top2.disease !== result?.top1.disease ? (
+                      <View style={styles.treatmentGroup}>
+                        <Text style={styles.treatmentSubtitle}>
+                          Also consider for: {result.top2.disease}
+                        </Text>
+                        {top2Medicines.length ? (
+                          top2Medicines.slice(0, 3).map((m) => (
+                            <View
+                              key={`${m.disease}-${m.medicine}`}
+                              style={styles.medicineRow}
+                            >
+                              <Text style={styles.medicineName}>• {m.medicine}</Text>
+                              {m.attributes ? (
+                                <Text style={styles.medicineMeta}>
+                                  Duration: {m.attributes.Treatment_Duration_Days} • Route:{" "}
+                                  {m.attributes.Route_of_Administration}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.fallbackText}>
+                            No specific treatment data found for the 2nd prediction. Please consult a veterinarian.
+                          </Text>
+                        )}
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.modalDisclaimer}>
+                    ⚠️ AI prediction only. Please consult a veterinarian for diagnosis and treatment.
+                  </Text>
+                </>
+              ) : null}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
@@ -736,5 +1061,62 @@ const styles = StyleSheet.create({
     color: currentColors.textSecondary,
     marginTop: Spacing.sm,
     lineHeight: 20,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    maxHeight: "88%",
+    borderTopLeftRadius: BorderRadius.xl,
+    borderTopRightRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    ...Shadow.xl,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+  },
+  modalCloseButton: {
+    width: 38,
+    height: 38,
+    borderRadius: BorderRadius.full,
+    backgroundColor: `${currentColors.primary}15`,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBody: {
+    paddingBottom: Spacing.xxl,
+  },
+  animalChoiceRow: {
+    flexDirection: "row",
+    marginBottom: Spacing.md,
+  },
+  animalChoiceButton: {
+    flex: 1,
+    marginHorizontal: 4,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    paddingVertical: Spacing.sm,
+    alignItems: "center",
+    backgroundColor: currentColors.surfaceVariant,
+  },
+  animalChoiceText: {
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+  },
+  modalDisclaimer: {
+    marginTop: Spacing.md,
+    fontSize: FontSize.xs,
+    color: currentColors.textTertiary,
+    lineHeight: 18,
+    textAlign: "center",
   },
 });
