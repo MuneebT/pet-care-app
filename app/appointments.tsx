@@ -46,6 +46,25 @@ interface Appointment {
   updatedAt: Date;
 }
 
+const parseDate = (dateValue: any): Date => {
+  if (!dateValue) return new Date();
+  
+  if (typeof dateValue.toDate === 'function') {
+    return dateValue.toDate();
+  }
+  
+  if (typeof dateValue === 'string') {
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  
+  if (typeof dateValue === 'number') {
+    return new Date(dateValue);
+  }
+  
+  return new Date();
+};
+
 const MyAppointments: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [filter, setFilter] = useState<"upcoming" | "past">("upcoming");
@@ -91,7 +110,7 @@ const MyAppointments: React.FC = () => {
       
       for (const docSnapshot of querySnapshot.docs) {
         const data = docSnapshot.data() as DocumentData;
-        const appointmentDate = data.date?.toDate() || new Date();
+        const appointmentDate = parseDate(data.date);
         
         const appointment: Appointment = {
           id: docSnapshot.id,
@@ -104,8 +123,8 @@ const MyAppointments: React.FC = () => {
           date: appointmentDate,
           time: data.time || '12:00 PM',
           status: data.status || 'pending',
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+          createdAt: parseDate(data.createdAt),
+          updatedAt: parseDate(data.updatedAt),
         };
 
         try {
