@@ -27,6 +27,7 @@ import {
 } from '@/constants/theme';
 import { db } from '@/services/firebase';
 import { collection, addDoc, serverTimestamp, query, getDocs, orderBy } from 'firebase/firestore';
+import BottomNavigationBar from './bottomnavigationbar';
 
 const { width } = Dimensions.get('window');
 
@@ -488,6 +489,10 @@ const ImageChecker = () => {
           </View>
         </TouchableOpacity>
       )}
+
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigationBar />
+      </View>
     </SafeAreaView>
   );
 };
@@ -711,6 +716,12 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     fontSize: FontSize.md,
     fontWeight: FontWeight.semibold,
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });
 

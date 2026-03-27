@@ -22,6 +22,7 @@ import {
 import { Avatar, useTheme } from "react-native-paper";
 import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 import { useAppTheme } from '@/context/ThemeContext';
+import BottomNavigationBar from './bottomnavigationbar';
 
 const { width } = Dimensions.get('window');
 
@@ -310,6 +311,10 @@ const Home = () => {
         visible={tipsReady && showTips && !loading}
         onClose={() => setShowTips(false)}
       />
+
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigationBar />
+      </View>
     </SafeAreaView>
   );
 };
@@ -555,6 +560,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: currentColors.textSecondary,
     lineHeight: 20,
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });
 

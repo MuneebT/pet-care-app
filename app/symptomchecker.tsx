@@ -11,6 +11,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import axios from "axios";
 import { useLocalSearchParams } from "expo-router";
 import React, { useCallback, useState } from "react";
+import BottomNavigationBar from './bottomnavigationbar';
 import {
   Alert,
   Dimensions,
@@ -1957,6 +1958,10 @@ const Symptomchecker = () => {
           </View>
         </View>
       </Modal>
+
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigationBar />
+      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -2249,6 +2254,12 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     marginBottom: Spacing.lg,
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });
 
