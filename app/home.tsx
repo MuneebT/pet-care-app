@@ -22,8 +22,23 @@ import {
 import { Avatar, useTheme } from "react-native-paper";
 import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 import { useAppTheme } from '@/context/ThemeContext';
+import BottomNavigationBar from './bottomnavigationbar';
 
 const { width } = Dimensions.get('window');
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  
+  if (hour >= 5 && hour < 12) {
+    return 'Good Morning';
+  } else if (hour >= 12 && hour < 17) {
+    return 'Good Afternoon';
+  } else if (hour >= 17 && hour < 21) {
+    return 'Good Evening';
+  } else {
+    return 'Good Night';
+  }
+};
 
 const Home = () => {
   const params = useLocalSearchParams();
@@ -31,6 +46,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [showTips, setShowTips] = useState(false);
   const [tipsReady, setTipsReady] = useState(false);
+  const [greeting, setGreeting] = useState(getGreeting());
   const theme = useTheme();
   const { colors: appColors } = useAppTheme();
 
@@ -192,7 +208,7 @@ const Home = () => {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Good Morning,</Text>
+            <Text style={styles.greeting}>{greeting},</Text>
             <Text style={styles.userName}>{name}</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/settings')} onLongPress={async () => {
@@ -310,6 +326,10 @@ const Home = () => {
         visible={tipsReady && showTips && !loading}
         onClose={() => setShowTips(false)}
       />
+
+      <View style={styles.bottomNavContainer}>
+        <BottomNavigationBar />
+      </View>
     </SafeAreaView>
   );
 };
@@ -555,6 +575,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: currentColors.textSecondary,
     lineHeight: 20,
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });
 

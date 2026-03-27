@@ -1,5 +1,5 @@
 import { auth, db } from "@/services/firebase";
-import { router, useLocalSearchParams } from "expo-router";
+import { router } from "expo-router";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
   collection,
@@ -26,152 +26,10 @@ import {
   TouchableWithoutFeedback,
   View
 } from "react-native";
-import { Button, useTheme } from "react-native-paper";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { BorderRadius, Spacing, Shadow } from "@/constants/theme";
 import BottomNavigationBar from "./bottomnavigationbar";
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  innerContainer: {
-    flex: 1,
-  },
-  scrollViewContent: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    color: 'red',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  retryButton: {
-    marginTop: 10,
-  },
-  filterContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 20,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    padding: 4,
-  },
-  filterButton: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  activeFilterButton: {
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  filterText: {
-    color: '#666',
-    fontWeight: '500',
-  },
-  activeFilterText: {
-    color: '#007AFF',
-    fontWeight: '600',
-  },
-  bookButton: {
-    backgroundColor: '#5B4034',
-    marginTop: 25,
-    paddingVertical: 15,
-    borderRadius: 15,
-    alignItems: 'center',
-    marginHorizontal: 20,
-  },
-  bookButtonLabel: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  vetName: {
-    color: '#666',
-    marginBottom: 4,
-  },
-  dateText: {
-    color: '#666',
-    fontSize: 14,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 50,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  bottomNavContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-});
+import { AppointmentCard } from "@/components/ui/appointment-card";
 
 interface Appointment {
   id: string;
@@ -179,6 +37,7 @@ interface Appointment {
   petId: string;
   vetId: string;
   petName: string;
+  petType?: string;
   vetName: string;
   date: Date;
   time: string;
@@ -187,28 +46,33 @@ interface Appointment {
   updatedAt: Date;
 }
 
+const parseDate = (dateValue: any): Date => {
+  if (!dateValue) return new Date();
+  
+  if (typeof dateValue.toDate === 'function') {
+    return dateValue.toDate();
+  }
+  
+  if (typeof dateValue === 'string') {
+    const parsed = new Date(dateValue);
+    return isNaN(parsed.getTime()) ? new Date() : parsed;
+  }
+  
+  if (typeof dateValue === 'number') {
+    return new Date(dateValue);
+  }
+  
+  return new Date();
+};
+
 const MyAppointments: React.FC = () => {
-  const { uid } = useLocalSearchParams<{ uid: string }>();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [filter, setFilter] = useState<"upcoming" | "past">("upcoming");
   const [filteredAppointments, setFilteredAppointments] = useState<Appointment[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
 
-  // Format date to readable string
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
-
-  // Get current user on component mount
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setCurrentUser(user);
@@ -227,21 +91,11 @@ const MyAppointments: React.FC = () => {
     };
   }, []);
 
-  const handleBookAppointment = () => {
-    if (!currentUser) {
-      Alert.alert("Authentication Required", "Please sign in to book an appointment.");
-      router.replace('/login');
-      return;
-    }
-    router.push("/bookapointment");
-  };
-
   const fetchAppointments = async (userId: string) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      // Query appointments for the current user
       const appointmentsRef = collection(db, "appointments");
       const q = query(appointmentsRef, where("userId", "==", userId));
       const querySnapshot = await getDocs(q);
@@ -254,10 +108,9 @@ const MyAppointments: React.FC = () => {
 
       const appointmentsData: Appointment[] = [];
       
-      // Process each appointment
       for (const docSnapshot of querySnapshot.docs) {
         const data = docSnapshot.data() as DocumentData;
-        const appointmentDate = data.date?.toDate() || new Date();
+        const appointmentDate = parseDate(data.date);
         
         const appointment: Appointment = {
           id: docSnapshot.id,
@@ -265,29 +118,28 @@ const MyAppointments: React.FC = () => {
           petId: data.petId,
           vetId: data.vetId,
           petName: 'Loading...',
+          petType: 'paw',
           vetName: 'Loading...',
           date: appointmentDate,
           time: data.time || '12:00 PM',
           status: data.status || 'pending',
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+          createdAt: parseDate(data.createdAt),
+          updatedAt: parseDate(data.updatedAt),
         };
 
-        // Fetch pet details
         try {
           if (data.petId) {
             const petDoc = await getDoc(doc(db, "users", userId, "pets", data.petId));
             if (petDoc.exists()) {
-              const petData = petDoc.data() as { name?: string };
+              const petData = petDoc.data() as { name?: string; type?: string };
               appointment.petName = petData.name || 'Unknown Pet';
+              appointment.petType = petData.type || 'paw';
             }
           }
         } catch (petError) {
-          console.error('Error fetching pet:', petError);
           appointment.petName = 'Pet not found';
         }
 
-        // Fetch vet details
         try {
           if (data.vetId) {
             const vetDoc = await getDoc(doc(db, "vets", data.vetId));
@@ -297,14 +149,12 @@ const MyAppointments: React.FC = () => {
             }
           }
         } catch (vetError) {
-          console.error('Error fetching vet:', vetError);
           appointment.vetName = 'Vet not found';
         }
 
         appointmentsData.push(appointment);
       }
 
-      // Sort by date (newest first)
       const sortedAppointments = [...appointmentsData].sort(
         (a, b) => b.date.getTime() - a.date.getTime()
       );
@@ -319,7 +169,6 @@ const MyAppointments: React.FC = () => {
     }
   };
 
-  // Filter appointments based on selected filter
   useEffect(() => {
     if (appointments.length === 0) return;
     
@@ -333,28 +182,6 @@ const MyAppointments: React.FC = () => {
     setFilteredAppointments(filtered);
   }, [filter, appointments]);
 
-
-  const renderItem: ListRenderItem<Appointment> = ({ item }) => {
-    const status = item.status === 'confirmed' ? "Confirmed" : "Pending";
-    const statusColor = item.status === 'confirmed' ? "#B2F0C0" : "#FCE59C";
-
-    return (
-      <View style={styles.card}>
-        <View style={styles.headerRow}>
-          <Text style={styles.petName}>{item.petName}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-            <Text style={styles.statusText}>{status}</Text>
-          </View>
-        </View>
-
-        <Text style={styles.vetName}>Vet: {item.vetName}</Text>
-        <Text style={styles.dateText}>
-          {formatDate(item.date)} at {item.time}
-        </Text>
-      </View>
-    );
-  };
-
   const handleBookAppointmentPress = () => {
     if (!currentUser) {
       Alert.alert("Authentication Required", "Please sign in to book an appointment.");
@@ -364,109 +191,346 @@ const MyAppointments: React.FC = () => {
     router.push("/bookapointment");
   };
 
+  const renderItem: ListRenderItem<Appointment> = ({ item }) => (
+    <AppointmentCard
+      petName={item.petName}
+      petType={item.petType}
+      vetName={item.vetName}
+      date={item.date}
+      time={item.time}
+      status={item.status}
+    />
+  );
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <View style={styles.gradientBackground} />
+        <View style={styles.loadingContent}>
+          <MaterialCommunityIcons name="calendar-clock" size={64} color="#6366F1" />
+          <Text style={styles.loadingText}>Loading your appointments...</Text>
+        </View>
       </View>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error}</Text>
-        <Button 
-          mode="contained" 
-          onPress={() => currentUser && fetchAppointments(currentUser.uid)}
-          style={styles.retryButton}
-        >
-          Retry
-        </Button>
+      <View style={styles.loadingContainer}>
+        <View style={styles.gradientBackground} />
+        <View style={styles.errorContent}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => currentUser && fetchAppointments(currentUser.uid)}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <View style={styles.innerContainer}>
-          <ScrollView contentContainerStyle={styles.scrollViewContent}>
-            <View style={styles.header}>
-              <Text style={styles.title}>My Appointments</Text>
-              <TouchableOpacity
-                style={styles.bookButton}
-                onPress={handleBookAppointmentPress}
-              >
-                <Text style={styles.bookButtonLabel}>Book New</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.filterContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.filterButton,
-                  filter === "upcoming" && styles.activeFilterButton,
-                ]}
-                onPress={() => setFilter("upcoming")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    filter === "upcoming" && styles.activeFilterText,
-                  ]}
+    <View style={styles.container}>
+      <View style={styles.gradientBackground} />
+      
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <View style={styles.innerContainer}>
+            <ScrollView 
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.header}>
+                <View style={styles.titleRow}>
+                  <MaterialCommunityIcons name="calendar-check" size={32} color="#6366F1" />
+                  <Text style={styles.title}>My Appointments</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.bookButton}
+                  onPress={handleBookAppointmentPress}
+                  activeOpacity={0.8}
                 >
-                  Upcoming
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.filterButton,
-                  filter === "past" && styles.activeFilterButton,
-                ]}
-                onPress={() => setFilter("past")}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    filter === "past" && styles.activeFilterText,
-                  ]}
-                >
-                  Past
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {filteredAppointments.length > 0 ? (
-              <FlatList
-                data={filteredAppointments}
-                renderItem={renderItem}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                contentContainerStyle={{ paddingBottom: 20 }}
-              />
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>
-                  {filter === 'upcoming' 
-                    ? 'No upcoming appointments' 
-                    : 'No past appointments'}
-                </Text>
+                  <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
+                  <Text style={styles.bookButtonText}>Book New</Text>
+                </TouchableOpacity>
               </View>
-            )}
-          </ScrollView>
-          
-          <View style={styles.bottomNavContainer}>
-            <BottomNavigationBar />
+
+              <View style={styles.filterContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    filter === "upcoming" && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setFilter("upcoming")}
+                >
+                  <MaterialCommunityIcons 
+                    name="calendar-clock" 
+                    size={18} 
+                    color={filter === "upcoming" ? "#FFFFFF" : "#64748B"} 
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === "upcoming" && styles.filterTextActive,
+                    ]}
+                  >
+                    Upcoming
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.filterButton,
+                    filter === "past" && styles.filterButtonActive,
+                  ]}
+                  onPress={() => setFilter("past")}
+                >
+                  <MaterialCommunityIcons 
+                    name="history" 
+                    size={18} 
+                    color={filter === "past" ? "#FFFFFF" : "#64748B"} 
+                  />
+                  <Text
+                    style={[
+                      styles.filterText,
+                      filter === "past" && styles.filterTextActive,
+                    ]}
+                  >
+                    Past
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {filteredAppointments.length > 0 ? (
+                <FlatList
+                  data={filteredAppointments}
+                  renderItem={renderItem}
+                  keyExtractor={(item) => item.id}
+                  scrollEnabled={false}
+                  contentContainerStyle={{ paddingBottom: 20 }}
+                />
+              ) : (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <MaterialCommunityIcons 
+                      name={filter === 'upcoming' ? "calendar-blank" : "calendar-remove"} 
+                      size={64} 
+                      color="#CBD5E1" 
+                    />
+                  </View>
+                  <Text style={styles.emptyTitle}>
+                    {filter === 'upcoming' 
+                      ? 'No Upcoming Appointments' 
+                      : 'No Past Appointments'}
+                  </Text>
+                  <Text style={styles.emptySubtitle}>
+                    {filter === 'upcoming' 
+                      ? 'Book an appointment to keep your pets healthy!' 
+                      : 'Your completed appointments will appear here.'}
+                  </Text>
+                  {filter === 'upcoming' && (
+                    <TouchableOpacity
+                      style={styles.emptyButton}
+                      onPress={handleBookAppointmentPress}
+                      activeOpacity={0.8}
+                    >
+                      <MaterialCommunityIcons name="plus" size={18} color="#FFFFFF" />
+                      <Text style={styles.emptyButtonText}>Book Now</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </ScrollView>
+            
+            <View style={styles.bottomNavContainer}>
+              <BottomNavigationBar />
+            </View>
           </View>
-        </View>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+  },
+  gradientBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: '100%',
+    backgroundColor: '#F8FAFC',
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  innerContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: 120,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+  },
+  loadingContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  errorContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+  },
+  errorText: {
+    marginTop: Spacing.md,
+    fontSize: 16,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: Spacing.lg,
+    backgroundColor: '#EF4444',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    paddingTop: Spacing.md,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
+  },
+  bookButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+    ...Shadow.md,
+  },
+  bookButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  filterContainer: {
+    flexDirection: "row",
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.xs,
+    marginBottom: Spacing.lg,
+    ...Shadow.sm,
+  },
+  filterButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
+  },
+  filterButtonActive: {
+    backgroundColor: '#6366F1',
+  },
+  filterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  filterTextActive: {
+    color: '#FFFFFF',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: Spacing.xxl,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  emptyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366F1',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.lg,
+    gap: Spacing.xs,
+    ...Shadow.md,
+  },
+  emptyButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  bottomNavContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+});
 
 export default MyAppointments;
