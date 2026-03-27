@@ -23,7 +23,27 @@ interface PetData {
   updatedAt?: string;
 }
 
-const PET_TYPES = ['Dog', 'Cat', 'Bird', 'Rabbit', 'Hamster', 'Fish', 'Reptile', 'Other'];
+const PET_TYPES = ['Dog', 'Cat'];
+
+const CAT_BREEDS = [
+  'Himalayan', 'Turkish Angora', 'Siamese', 'Russian Blue', 'Domestic Shorthair',
+  'Oriental Shorthair', 'Persian', 'Domestic Longhair', 'Sphynx', 'Bengal',
+  'Tonkinese', 'Manx', 'British Shorthair', 'Abyssinian', 'Scottish Fold',
+  'Birman', 'Maine Coon', 'Cornish Rex', 'Devon Rex', 'Norwegian Forest Cat',
+  'Exotic Shorthair', 'Ragdoll', 'Burmese', 'American Shorthair', 'Chartreux'
+];
+
+const DOG_BREEDS = [
+  'Beagle', 'Australian Shepherd', 'Poodle', 'Pomeranian', 'Bulldog',
+  'German Shepherd', 'Doberman', 'Boston Terrier', 'Miniature Schnauzer', 'Border Collie',
+  'Boxer', 'Cavalier King Charles Spaniel', 'Dachshund', 'Chihuahua', 'Cocker Spaniel',
+  'Yorkshire Terrier', 'Shih Tzu', 'Great Dane', 'Siberian Husky', 'Maltese',
+  'Shetland Sheepdog', 'Golden Retriever', 'Pembroke Welsh Corgi', 'Rottweiler', 'Labrador Retriever'
+];
+
+const getBreedsByType = (type: string): string[] => {
+  return type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS;
+};
 
 const EditPet = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -54,6 +74,7 @@ const EditPet = () => {
   const [petAge, setPetAge] = useState<string>(age);
   const [petImage, setPetImage] = useState<string>(image);
   const [showTypeDropdown, setShowTypeDropdown] = useState<boolean>(false);
+  const [showBreedDropdown, setShowBreedDropdown] = useState<boolean>(false);
 
   const handleUpdate = useCallback(async () => {
     if (!currentUser) {
@@ -235,15 +256,38 @@ const EditPet = () => {
                 </FormFieldCard>
 
                 <FormFieldCard icon="certificate-outline" label="Breed">
-                  <TextInput
-                    value={petBreed}
-                    onChangeText={setPetBreed}
-                    placeholder="e.g., Golden Retriever"
-                    placeholderTextColor="#94A3B8"
-                    style={styles.input}
-                    underlineColor="transparent"
-                    activeUnderlineColor="transparent"
-                  />
+                  <TouchableOpacity
+                    style={styles.dropdownButton}
+                    onPress={() => setShowBreedDropdown(!showBreedDropdown)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[styles.dropdownText, !petBreed && styles.placeholderText]}>
+                      {petBreed || 'Select breed'}
+                    </Text>
+                    <MaterialCommunityIcons 
+                      name={showBreedDropdown ? 'chevron-up' : 'chevron-down'} 
+                      size={20} 
+                      color="#64748B" 
+                    />
+                  </TouchableOpacity>
+                  {showBreedDropdown && (
+                    <ScrollView style={styles.breedDropdown} nestedScrollEnabled>
+                      {getBreedsByType(petType || 'Dog').map((b) => (
+                        <TouchableOpacity
+                          key={b}
+                          style={[styles.breedOption, petBreed === b && styles.breedOptionSelected]}
+                          onPress={() => {
+                            setPetBreed(b);
+                            setShowBreedDropdown(false);
+                          }}
+                        >
+                          <Text style={[styles.breedOptionText, petBreed === b && styles.breedOptionTextSelected]}>
+                            {b}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  )}
                 </FormFieldCard>
 
                 <FormFieldCard icon="heart-outline" label="Gender">
@@ -425,6 +469,29 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   dropdownItemTextSelected: {
+    color: '#6366F1',
+    fontWeight: '600',
+  },
+  breedDropdown: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
+    maxHeight: 200,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  breedOption: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  breedOptionSelected: {
+    backgroundColor: '#EEF2FF',
+  },
+  breedOptionText: {
+    fontSize: 15,
+    color: '#64748B',
+  },
+  breedOptionTextSelected: {
     color: '#6366F1',
     fontWeight: '600',
   },

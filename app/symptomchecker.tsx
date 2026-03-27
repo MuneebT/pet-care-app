@@ -29,6 +29,7 @@ import {
   View,
 } from "react-native";
 import { Button, Chip, Searchbar, Switch, useTheme } from "react-native-paper";
+import { Picker } from "@react-native-picker/picker";
 
 const { width } = Dimensions.get("window");
 
@@ -1054,6 +1055,26 @@ const SYMPTOMS: SymptomData[] = [
   { name: "Feline cardiomyopathy", category: "General" },
 ];
 
+const CAT_BREEDS = [
+  'Himalayan', 'Turkish Angora', 'Siamese', 'Russian Blue', 'Domestic Shorthair',
+  'Oriental Shorthair', 'Persian', 'Domestic Longhair', 'Sphynx', 'Bengal',
+  'Tonkinese', 'Manx', 'British Shorthair', 'Abyssinian', 'Scottish Fold',
+  'Birman', 'Maine Coon', 'Cornish Rex', 'Devon Rex', 'Norwegian Forest Cat',
+  'Exotic Shorthair', 'Ragdoll', 'Burmese', 'American Shorthair', 'Chartreux'
+];
+
+const DOG_BREEDS = [
+  'Beagle', 'Australian Shepherd', 'Poodle', 'Pomeranian', 'Bulldog',
+  'German Shepherd', 'Doberman', 'Boston Terrier', 'Miniature Schnauzer', 'Border Collie',
+  'Boxer', 'Cavalier King Charles Spaniel', 'Dachshund', 'Chihuahua', 'Cocker Spaniel',
+  'Yorkshire Terrier', 'Shih Tzu', 'Great Dane', 'Siberian Husky', 'Maltese',
+  'Shetland Sheepdog', 'Golden Retriever', 'Pembroke Welsh Corgi', 'Rottweiler', 'Labrador Retriever'
+];
+
+const getBreedsByType = (type: string): string[] => {
+  return type.toLowerCase() === 'cat' ? CAT_BREEDS : DOG_BREEDS;
+};
+
 const getUniqueSymptoms = (symptoms: SymptomData[]): string[] => {
   const uniqueNames = new Set<string>();
   const unique: string[] = [];
@@ -1163,7 +1184,7 @@ const Symptomchecker = () => {
 
   const handlePredict = async () => {
     if (!breed.trim()) {
-      Alert.alert("Validation Error", "Please enter the breed");
+      Alert.alert("Validation Error", "Please select a breed");
       return;
     }
     if (!age.trim()) {
@@ -1494,20 +1515,19 @@ const Symptomchecker = () => {
               >
                 Breed *
               </Text>
-              <TextInput
-                style={[
-                  styles.textInput,
-                  {
-                    color: currentColors.text,
-                    backgroundColor: "#F1F5F9",
-                    borderRadius: BorderRadius.md,
-                  },
-                ]}
-                placeholder="Enter breed"
-                placeholderTextColor={currentColors.textTertiary}
-                value={breed}
-                onChangeText={setBreed}
-              />
+              <View style={[styles.pickerContainer, { backgroundColor: "#F1F5F9", borderRadius: BorderRadius.md }]}>
+                <Picker
+                  selectedValue={breed}
+                  onValueChange={(itemValue) => setBreed(itemValue)}
+                  style={{ color: currentColors.text }}
+                  dropdownIconColor={currentColors.textSecondary}
+                >
+                  <Picker.Item label="Select breed..." value="" />
+                  {getBreedsByType(animalType).map((b) => (
+                    <Picker.Item key={b} label={b} value={b} />
+                  ))}
+                </Picker>
+              </View>
             </View>
 
             <View style={styles.row}>
@@ -2036,6 +2056,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
+  },
+  pickerContainer: {
+    backgroundColor: "#F1F5F9",
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
   },
   input: {
     fontSize: FontSize.md,
