@@ -1,5 +1,5 @@
-import { auth, db } from '@/src/config/firebase';
-import { useAppNavigation } from '@/src/navigation/useAppNavigation';
+import { auth, db } from '@/services/firebase';
+import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
@@ -38,7 +38,7 @@ type PetDocumentData = {
 
 const MyPatients = () => {
   const theme = useTheme();
-  const { navigate } = useAppNavigation();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [invalidPetIds, setInvalidPetIds] = useState<Set<string>>(new Set());
@@ -77,7 +77,7 @@ const MyPatients = () => {
         console.log('Starting to fetch patients...');
         if (!currentUser) {
           console.log('No current user, redirecting to login');
-          navigate('/login');
+          router.push('/login');
           return;
         }
 
@@ -192,7 +192,7 @@ const MyPatients = () => {
     if (currentUser) {
       fetchPatients();
     }
-  }, [currentUser, navigate]);
+  }, [currentUser]);
 
   const renderPatientItem = ({ item }: { item: Patient }) => (
     <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>

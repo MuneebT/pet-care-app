@@ -1,4 +1,4 @@
-import { db } from '@/src/config/firebase';
+import { db } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';

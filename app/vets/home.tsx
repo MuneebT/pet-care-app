@@ -1,4 +1,4 @@
-import { auth, db } from '@/src/config/firebase';
+import { auth, db } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { doc, getDoc } from 'firebase/firestore';

@@ -108,7 +108,7 @@ const SplashScreen = () => {
         </Animated.View>
 
         <Text style={styles.title}>PET CARE</Text>
-        <Text style={styles.subtitle}>Your Pet's Health Companion</Text>
+        <Text style={styles.subtitle}>Your Pet&apos;s Health Companion</Text>
 
         <View style={styles.loadingContainer}>
           <View style={styles.loadingDot} />

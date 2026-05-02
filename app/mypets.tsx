@@ -1,4 +1,4 @@
-import { db } from '@/src/config/firebase';
+import { db } from '@/services/firebase';
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -15,64 +15,69 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { Button, Card, FAB, useTheme } from 'react-native-paper';
+import { Button, FAB, useTheme } from 'react-native-paper';
 import BottomNavigationBar from './bottomnavigationbar';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: currentColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: currentColors.background,
   },
   header: {
-    height: 60,
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    backgroundColor: 'white',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e6ed',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    backgroundColor: currentColors.white,
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
+  },
+  headerSubtitle: {
+    fontSize: FontSize.sm,
+    color: currentColors.textSecondary,
+    marginTop: 4,
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: Spacing.md,
+    paddingBottom: 120,
   },
   listContainer: {
-    padding: 16,
+    padding: Spacing.md,
   },
   petCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: currentColors.white,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+    ...Shadow.md,
   },
   petCardContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: Spacing.md,
     alignItems: 'center',
   },
   petImage: {
     width: 80,
     height: 80,
-    borderRadius: 40,
-    marginRight: 16,
-    backgroundColor: '#e0e0e0',
+    borderRadius: BorderRadius.lg,
+    marginRight: Spacing.md,
+    backgroundColor: currentColors.surfaceVariant,
   },
   petImagePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius.lg,
+    marginRight: Spacing.md,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -80,75 +85,108 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   petName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
+    marginBottom: 4,
   },
   petDetails: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   petDetail: {
-    fontSize: 14,
-    color: '#7f8c8d',
-    marginRight: 12,
-    marginBottom: 4,
+    fontSize: FontSize.sm,
+    color: currentColors.textSecondary,
+    marginRight: Spacing.sm,
+  },
+  petDetailDot: {
+    fontSize: FontSize.sm,
+    color: currentColors.textTertiary,
+    marginRight: Spacing.sm,
   },
   petActions: {
     flexDirection: 'row',
-    marginTop: 8,
+    marginTop: Spacing.xs,
   },
   actionButton: {
-    padding: 6,
-    marginRight: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    elevation: 1,
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: currentColors.surfaceVariant,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 40,
-    marginTop: 60,
+    paddingVertical: Spacing.xxl,
+  },
+  emptyIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyText: {
-    fontSize: 18,
-    color: '#95a5a6',
-    marginVertical: 16,
+    fontSize: FontSize.lg,
+    color: currentColors.textSecondary,
+    marginBottom: Spacing.xs,
+    fontWeight: FontWeight.semibold,
+  },
+  emptySubtext: {
+    fontSize: FontSize.sm,
+    color: currentColors.textTertiary,
+    marginBottom: Spacing.lg,
     textAlign: 'center',
-    fontWeight: '500',
   },
   addButton: {
-    marginTop: 16,
-    borderRadius: 10,
-    backgroundColor: '#FF6B35',
-    paddingHorizontal: 24,
-    elevation: 2,
+    borderRadius: BorderRadius.md,
+    backgroundColor: currentColors.primary,
+    paddingHorizontal: Spacing.lg,
+    ...Shadow.md,
   },
   addButtonLabel: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
+    color: currentColors.white,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
   },
   fab: {
     position: 'absolute',
-    right: 24,
-    bottom: 80,
-    backgroundColor: '#FF6B35',
-    borderRadius: 28,
-    elevation: 4,
+    right: Spacing.lg,
+    bottom: 100,
+    backgroundColor: currentColors.primary,
+    borderRadius: BorderRadius.lg,
+    ...Shadow.lg,
   },
   navButton: {
     alignItems: 'center',
-    padding: 8,
+    padding: Spacing.sm,
   },
   navButtonText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
+    fontSize: FontSize.xs,
+    color: currentColors.textSecondary,
+    marginTop: 2,
+  },
+  petTypeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  petTypeBadge: {
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.sm,
+  },
+  petTypeText: {
+    fontSize: FontSize.xs,
+    color: currentColors.primary,
+    fontWeight: FontWeight.medium,
   },
 });
 
@@ -205,7 +243,6 @@ const MyPets = () => {
 
       setUserId(uid);
       
-      // Updated to use the nested collection path: users/{userId}/pets
       const userPetsRef = collection(db, 'users', uid, 'pets');
       const querySnapshot = await getDocs(userPetsRef);
 
@@ -257,7 +294,7 @@ const MyPets = () => {
 
       Alert.alert(
         'Delete Pet',
-        'Are you sure you want to delete this pet?',
+        'Are you sure you want to delete this pet? This action cannot be undone.',
         [
           {
             text: 'Cancel',
@@ -267,7 +304,6 @@ const MyPets = () => {
             text: 'Delete',
             style: 'destructive',
             onPress: async () => {
-              // Updated to use the nested collection path
               await deleteDoc(doc(db, 'users', uid, 'pets', petId));
               setPets(prev => prev.filter(pet => pet.id !== petId));
             },
@@ -320,31 +356,37 @@ const MyPets = () => {
   };
 
     const renderPetItem = ({ item }: { item: Pet }) => (
-    <Card 
-      style={styles.petCard} 
-      onPress={() => router.push({ 
-        pathname: '/editpets', 
-        params: { 
-          petId: item.id,
-          userId,
-          ...item
-        } as any 
-      })}
-    >
-      <View style={styles.petCardContent}>
+    <View style={styles.petCard}>
+      <TouchableOpacity 
+        style={styles.petCardContent}
+        onPress={() => router.push({ 
+          pathname: '/editpets', 
+          params: { 
+            petId: item.id,
+            userId,
+            ...item
+          } as any 
+        })}
+        activeOpacity={0.7}
+      >
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.petImage} />
         ) : (
-          <View style={[styles.petImage, styles.petImagePlaceholder]}>
-            <MaterialIcons name="pets" size={40} color="#666" />
+          <View style={styles.petImagePlaceholder}>
+            <MaterialIcons name="pets" size={36} color={currentColors.primary} />
           </View>
         )}
         <View style={styles.petInfo}>
           <Text style={styles.petName}>{item.name}</Text>
           <View style={styles.petDetails}>
             <Text style={styles.petDetail}>{item.type}</Text>
-            <Text style={styles.petDetail}>• {item.breed}</Text>
-            <Text style={styles.petDetail}>• {item.age} {item.age === 1 ? 'year' : 'years'} old</Text>
+            <Text style={styles.petDetailDot}>•</Text>
+            <Text style={styles.petDetail}>{item.breed}</Text>
+          </View>
+          <View style={styles.petTypeContainer}>
+            <View style={styles.petTypeBadge}>
+              <Text style={styles.petTypeText}>{item.age} {item.age === 1 ? 'year' : 'years'} old</Text>
+            </View>
           </View>
           <View style={styles.petActions}>
             <TouchableOpacity
@@ -354,7 +396,7 @@ const MyPets = () => {
                 goToEditPet(item);
               }}
             >
-              <MaterialIcons name="edit" size={20} color="#4A90E2" />
+              <MaterialIcons name="edit" size={18} color={currentColors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionButton}
@@ -363,18 +405,18 @@ const MyPets = () => {
                 handleDeletePet(item.id);
               }}
             >
-              <MaterialIcons name="delete" size={20} color="#E74C3C" />
+              <MaterialIcons name="delete" size={18} color={currentColors.error} />
             </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </Card>
+      </TouchableOpacity>
+    </View>
   );
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#FF6B35" />
+        <ActivityIndicator size="large" color={currentColors.primary} />
       </View>
     );
   }
@@ -383,6 +425,7 @@ const MyPets = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Pets</Text>
+        <Text style={styles.headerSubtitle}>{pets.length} {pets.length === 1 ? 'pet' : 'pets'} registered</Text>
       </View>
       <FlatList
         data={pets}
@@ -393,19 +436,23 @@ const MyPets = () => {
           <RefreshControl 
             refreshing={refreshing} 
             onRefresh={onRefresh} 
-            colors={['#FF6B35']}
-            tintColor="#FF6B35"
+            colors={[currentColors.primary]}
+            tintColor={currentColors.primary}
           />
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <MaterialIcons name="pets" size={80} color="#e0e0e0" />
+            <View style={styles.emptyIconContainer}>
+              <MaterialIcons name="pets" size={56} color={currentColors.primary} />
+            </View>
             <Text style={styles.emptyText}>No pets added yet</Text>
+            <Text style={styles.emptySubtext}>Add your first furry friend to get started</Text>
             <Button
               mode="contained"
               onPress={navigateToAddPet}
               style={styles.addButton}
               labelStyle={styles.addButtonLabel}
+              icon="plus"
             >
               Add Your First Pet
             </Button>
@@ -417,7 +464,7 @@ const MyPets = () => {
         <FAB
           style={styles.fab}
           icon="plus"
-          color="white"
+          color={currentColors.white}
           onPress={navigateToAddPet}
         />
       )}

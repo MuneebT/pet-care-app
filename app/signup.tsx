@@ -19,7 +19,9 @@ import {
   View
 } from 'react-native';
 import { Button as PaperButton, RadioButton } from 'react-native-paper';
-import { auth, db } from '../src/config/firebase';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { auth, db } from '../src/services/firebase';
+import { Colors, BorderRadius, Spacing, FontSize, Shadow, FontWeight } from '@/constants/theme';
 
 const Signup = () => {
   const [checked, setChecked] = useState('');
@@ -27,6 +29,7 @@ const Signup = () => {
   const [email, setemail] = useState('');
   const [password, setpassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const commonEmailDomains = [
     '@gmail.com',
@@ -47,7 +50,7 @@ const Signup = () => {
 
   const checkEmptyFields = () => {
     if (!name.trim() || !email.trim() || !password.trim() || !checked.trim()) {
-      alert('Don’t leave empty fields');
+      alert('Dont leave empty fields');
       return false;
     }
     return true;
@@ -69,7 +72,7 @@ const Signup = () => {
       }
 
       setIsLoading(true);
-      console.log("🟡 Attempting signup for:", email);
+      console.log("Attempting signup for:", email);
 
       const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
@@ -125,83 +128,133 @@ const Signup = () => {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.logoContainer}>
-            <Image
-              source={require('../assets/images/paw.jpg')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <Text style={styles.title}>PET CARE</Text>
-            <Text style={styles.subtitle}>Create your account</Text>
+          <View style={styles.headerSection}>
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Image
+                  source={require('../assets/images/paw.jpg')}
+                  style={styles.logo}
+                  resizeMode="cover"
+                />
+              </View>
+              <Text style={styles.title}>PetCare</Text>
+              <Text style={styles.subtitle}>Create your account to get started</Text>
+            </View>
           </View>
 
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Full Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="John Doe"
-              placeholderTextColor="#999"
-              value={name}
-              onChangeText={setname}
-              autoCapitalize="words"
-            />
-
-            <Text style={styles.label}>Email</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="example@email.com"
-              placeholderTextColor="#999"
-              value={email}
-              onChangeText={setemail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-
-            <Text style={styles.label}>I am a</Text>
-            <View style={styles.radioContainer}>
-              <View style={styles.radioButton}>
-                <RadioButton
-                  value="first"
-                  status={checked === 'first' ? 'checked' : 'unchecked'}
-                  onPress={() => setChecked('first')}
-                  color="#FF6B35"
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <View style={styles.inputContainer}>
+                <MaterialCommunityIcons name="account-outline" size={20} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="John Doe"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={name}
+                  onChangeText={setname}
+                  autoCapitalize="words"
+                  textContentType="name"
                 />
-                <Text style={styles.radioLabel}>Veterinarian</Text>
-              </View>
-              <View style={styles.radioButton}>
-                <RadioButton
-                  value="second"
-                  status={checked === 'second' ? 'checked' : 'unchecked'}
-                  onPress={() => setChecked('second')}
-                  color="#FF6B35"
-                />
-                <Text style={styles.radioLabel}>Pet Owner</Text>
               </View>
             </View>
 
-            <Text style={styles.label}>Password</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#999"
-              value={password}
-              onChangeText={setpassword}
-              secureTextEntry
-            />
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <View style={styles.inputContainer}>
+                <MaterialCommunityIcons name="email-outline" size={20} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="example@email.com"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={email}
+                  onChangeText={setemail}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoCorrect={false}
+                  textContentType="emailAddress"
+                />
+              </View>
+            </View>
 
-            <PaperButton
-              mode="contained"
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>I am a</Text>
+              <View style={styles.roleContainer}>
+                <TouchableOpacity 
+                  style={[
+                    styles.roleCard,
+                    checked === 'first' && styles.roleCardActive
+                  ]}
+                  onPress={() => setChecked('first')}
+                >
+                  <MaterialCommunityIcons 
+                    name="doctor" 
+                    size={24} 
+                    color={checked === 'first' ? Colors.light.white : Colors.light.primary} 
+                  />
+                  <Text style={[
+                    styles.roleText,
+                    checked === 'first' && styles.roleTextActive
+                  ]}>Veterinarian</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[
+                    styles.roleCard,
+                    checked === 'second' && styles.roleCardActive
+                  ]}
+                  onPress={() => setChecked('second')}
+                >
+                  <MaterialCommunityIcons 
+                    name="paw" 
+                    size={24} 
+                    color={checked === 'second' ? Colors.light.white : '#8B5CF6'} 
+                  />
+                  <Text style={[
+                    styles.roleText,
+                    checked === 'second' && styles.roleTextActive
+                  ]}>Pet Owner</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <View style={styles.inputContainer}>
+                <MaterialCommunityIcons name="lock-outline" size={20} color={Colors.light.textSecondary} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Create a password"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  value={password}
+                  onChangeText={setpassword}
+                  secureTextEntry={!showPassword}
+                  textContentType="newPassword"
+                />
+                <TouchableOpacity 
+                  style={styles.eyeIcon}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <MaterialCommunityIcons 
+                    name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                    size={20} 
+                    color={Colors.light.textSecondary} 
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.button, isLoading && styles.buttonDisabled]}
               onPress={signupUser}
-              style={styles.button}
-              labelStyle={styles.buttonLabel}
               disabled={isLoading}
+              activeOpacity={0.8}
             >
               {isLoading ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={Colors.light.white} />
               ) : (
-                'Create Account'
+                <Text style={styles.buttonText}>Create Account</Text>
               )}
-            </PaperButton>
+            </TouchableOpacity>
 
             <View style={styles.loginContainer}>
               <Text style={styles.loginText}>Already have an account? </Text>
@@ -219,105 +272,142 @@ const Signup = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FF6B35',
+    backgroundColor: Colors.light.background,
   },
   scrollContainer: {
     flexGrow: 1,
-    paddingVertical: 30,
-    paddingHorizontal: 20,
+  },
+  headerSection: {
+    paddingTop: Spacing.xxl,
+    paddingBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 30,
+  },
+  logoCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.light.white,
+    padding: 4,
+    marginBottom: Spacing.md,
+    ...Shadow.lg,
   },
   logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 15,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    padding: 10,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
   },
   title: {
-    fontSize: 32,
-    fontWeight: '800',
-    color: 'white',
-    marginBottom: 8,
+    fontSize: FontSize.xxxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.primary,
+    marginBottom: Spacing.xs,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 10,
+    fontSize: FontSize.md,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
   },
   formContainer: {
-    backgroundColor: 'white',
-    borderRadius: 20,
-    padding: 25,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    backgroundColor: Colors.light.white,
+    borderTopLeftRadius: BorderRadius.xxl,
+    borderTopRightRadius: BorderRadius.xxl,
+    padding: Spacing.lg,
+    paddingTop: Spacing.xl,
+    flex: 1,
+    ...Shadow.xl,
   },
-  label: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginTop: 15,
-    marginBottom: 5,
-    marginLeft: 5,
+  inputGroup: {
+    marginBottom: Spacing.md,
   },
-  input: {
-    backgroundColor: '#f8f9fa',
-    borderRadius: 12,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: '#333',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
+  inputLabel: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.light.text,
+    marginBottom: Spacing.xs,
+    marginLeft: Spacing.xs,
   },
-  radioContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 10,
-  },
-  radioButton: {
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    backgroundColor: Colors.light.surfaceVariant,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  radioLabel: {
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 8,
+  inputIcon: {
+    marginLeft: Spacing.md,
+  },
+  input: {
+    flex: 1,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 14,
+    fontSize: FontSize.md,
+    color: Colors.light.text,
+  },
+  eyeIcon: {
+    padding: Spacing.md,
+  },
+  roleContainer: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  roleCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.surfaceVariant,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    borderWidth: 2,
+    borderColor: Colors.light.border,
+    gap: Spacing.sm,
+  },
+  roleCardActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  roleText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: Colors.light.text,
+  },
+  roleTextActive: {
+    color: Colors.light.white,
   },
   button: {
-    marginTop: 25,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#FF6B35',
-    elevation: 2,
+    backgroundColor: Colors.light.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: Spacing.lg,
+    ...Shadow.md,
   },
-  buttonLabel: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: 'white',
-    paddingVertical: 4,
+  buttonDisabled: {
+    opacity: 0.7,
+  },
+  buttonText: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.light.white,
   },
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: Spacing.lg,
   },
   loginText: {
-    color: '#666',
-    fontSize: 15,
+    color: Colors.light.textSecondary,
+    fontSize: FontSize.md,
   },
   loginLink: {
-    color: '#FF6B35',
-    fontWeight: '600',
-    fontSize: 15,
+    color: Colors.light.primary,
+    fontWeight: FontWeight.bold,
+    fontSize: FontSize.md,
   },
 });
 
