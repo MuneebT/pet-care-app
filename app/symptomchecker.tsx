@@ -1115,10 +1115,7 @@ const COMMON_SYMPTOMS = [
   "Bad breath",
 ];
 
-const API_BASE_URLS = [
-  "https://pet-care-apis.onrender.com",
-  "https://pet-care-apis-production.up.railway.app",
-];
+const API_BASE_URL = "https://pet-care-apis.onrender.com";
 
 interface PredictionResult {
   predicted_disease: string;
@@ -1258,115 +1255,100 @@ const Symptomchecker = () => {
     };
 
     try {
-      let apiSuccess = false;
-      let lastError: any = null;
-
       console.log("Sending payload to API:", JSON.stringify(payload, null, 2));
 
-      for (const apiBaseUrl of API_BASE_URLS) {
-        try {
-          const endpoint =
-            animalType === "Dog"
-              ? `${apiBaseUrl}/predict/dog`
-              : `${apiBaseUrl}/predict/cat`;
+      const endpoint =
+        animalType === "Dog"
+          ? `${API_BASE_URL}/predict/dog`
+          : `${API_BASE_URL}/predict/cat`;
 
-          console.log("Trying API:", endpoint);
+      console.log("Trying API:", endpoint);
 
-          const response = await axios.post(endpoint, payload, {
-            headers: { "Content-Type": "application/json" },
-            timeout: 30000,
-          });
+      const response = await axios.post(endpoint, payload, {
+        headers: { "Content-Type": "application/json" },
+        timeout: 30000,
+      });
 
-          const apiData = response.data;
-          console.log("API Response:", JSON.stringify(apiData, null, 2));
+      const apiData = response.data;
+      console.log("API Response:", JSON.stringify(apiData, null, 2));
 
-          const rawConfidence = apiData.confidence ?? 0;
-          const normalizedConfidence =
-            rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
+      const rawConfidence = apiData.confidence ?? 0;
+      const normalizedConfidence =
+        rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
 
-          const mappedResult: PredictionResult = {
-            predicted_disease: apiData.prediction || apiData.predicted_disease || "Unknown",
-            confidence: normalizedConfidence,
-            recommendations: apiData.data?.recommendations || [
-              "Consult with a veterinarian for proper diagnosis",
-              "Monitor your pet's symptoms closely",
-              "Keep your pet comfortable and hydrated",
-            ],
-            severity: apiData.data?.severity || "Unknown",
-          };
+      const mappedResult: PredictionResult = {
+        predicted_disease: apiData.prediction || apiData.predicted_disease || "Unknown",
+        confidence: normalizedConfidence,
+        recommendations: apiData.data?.recommendations || [
+          "Consult with a veterinarian for proper diagnosis",
+          "Monitor your pet's symptoms closely",
+          "Keep your pet comfortable and hydrated",
+        ],
+        severity: apiData.data?.severity || "Unknown",
+      };
 
-          setResult(mappedResult);
-          setShowResultModal(true);
+      setResult(mappedResult);
+      setShowResultModal(true);
 
-          try {
-            const healthRecordRef = collection(db, "users", uid, "healthRecords");
-            await addDoc(healthRecordRef, {
-              animalType,
-              sex,
-              breed: breed.trim(),
-              age: ageNum,
-              weight: weightNum,
-              bodyTemperature: bodyTemp,
-              selectedSymptoms,
-              flags: {
-                appetiteLoss,
-                vomiting,
-                diarrhea,
-                coughing,
-                laboredBreathing,
-              },
-              prediction: mappedResult.predicted_disease,
-              confidence: mappedResult.confidence,
-              severity: mappedResult.severity,
-              recommendations: mappedResult.recommendations,
-              source: "symptomchecker",
-              createdAt: serverTimestamp(),
-            });
-          } catch (saveError) {
-            console.error("Error saving prediction to health records:", saveError);
+      try {
+        const healthRecordRef = collection(db, "users", uid, "healthRecords");
+        await addDoc(healthRecordRef, {
+          animalType,
+          sex,
+          breed: breed.trim(),
+          age: ageNum,
+          weight: weightNum,
+          bodyTemperature: bodyTemp,
+          selectedSymptoms,
+          flags: {
+            appetiteLoss,
+            vomiting,
+            diarrhea,
+            coughing,
+            laboredBreathing,
+          },
+          prediction: mappedResult.predicted_disease,
+          confidence: mappedResult.confidence,
+          severity: mappedResult.severity,
+          recommendations: mappedResult.recommendations,
+          source: "symptomchecker",
+          createdAt: serverTimestamp(),
+        });
+      } catch (saveError) {
+        console.error("Error saving prediction to health records:", saveError);
+      }
+    } catch (error: any) {
+      const lastError: any = error;
+      console.error("Prediction error:", lastError);
+
+      let errorMessage = "Failed to get prediction. Please try again.";
+
+      if (lastError.response?.data) {
+        console.log("Server response data:", JSON.stringify(lastError.response.data, null, 2));
+
+        if (lastError.response.status === 422 && lastError.response.data.detail) {
+          const validationErrors = lastError.response.data.detail;
+          if (Array.isArray(validationErrors) && validationErrors.length > 0) {
+            const firstError = validationErrors[0];
+            const fieldName = Array.isArray(firstError.loc) ? firstError.loc.slice(-1)[0] : 'field';
+            errorMessage = `Validation error: ${fieldName} - ${firstError.msg}`;
+          } else if (typeof validationErrors === 'string') {
+            errorMessage = `Validation error: ${validationErrors}`;
           }
-
-          apiSuccess = true;
-          break;
-        } catch (error: any) {
-          lastError = error;
-          console.log(`Failed with ${apiBaseUrl}, trying next...`);
-          continue;
+        } else if (lastError.response.data.message) {
+          errorMessage = lastError.response.data.message;
+        } else if (lastError.response.data.prediction) {
+          errorMessage = `Prediction error: ${lastError.response.data.prediction}`;
         }
+      } else if (lastError.code === "ECONNABORTED") {
+        errorMessage = "Request timed out. Please check your connection.";
+      } else if (lastError.request) {
+        errorMessage = "Cannot connect to server. Please check your internet connection.";
+      } else if (lastError.message) {
+        errorMessage = lastError.message;
       }
 
-      if (!apiSuccess) {
-        console.error("Prediction error:", lastError);
-        
-        let errorMessage = "Failed to get prediction. Please try again.";
-
-        if (lastError.response?.data) {
-          console.log("Server response data:", JSON.stringify(lastError.response.data, null, 2));
-          
-          if (lastError.response.status === 422 && lastError.response.data.detail) {
-            const validationErrors = lastError.response.data.detail;
-            if (Array.isArray(validationErrors) && validationErrors.length > 0) {
-              const firstError = validationErrors[0];
-              const fieldName = Array.isArray(firstError.loc) ? firstError.loc.slice(-1)[0] : 'field';
-              errorMessage = `Validation error: ${fieldName} - ${firstError.msg}`;
-            } else if (typeof validationErrors === 'string') {
-              errorMessage = `Validation error: ${validationErrors}`;
-            }
-          } else if (lastError.response.data.message) {
-            errorMessage = lastError.response.data.message;
-          } else if (lastError.response.data.prediction) {
-            errorMessage = `Prediction error: ${lastError.response.data.prediction}`;
-          }
-        } else if (lastError.code === "ECONNABORTED") {
-          errorMessage = "Request timed out. Please check your connection.";
-        } else if (lastError.request) {
-          errorMessage = "Cannot connect to server. Please check your internet connection.";
-        } else if (lastError.message) {
-          errorMessage = lastError.message;
-        }
-
-        Alert.alert("Error", errorMessage);
-      }
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsLoading(false);
     }
