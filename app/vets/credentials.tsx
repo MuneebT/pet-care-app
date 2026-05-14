@@ -1,10 +1,10 @@
 import { auth } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from "expo-image-picker";
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { doc, getFirestore, setDoc } from 'firebase/firestore';
 import React, { useState } from 'react';
 import {
@@ -20,138 +20,295 @@ import {
   TouchableWithoutFeedback,
   View
 } from 'react-native';
-import { Button, TextInput } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Switch, TextInput } from 'react-native-paper';
+import { BorderRadius, Spacing, Shadow } from '@/constants/theme';
+
+const PRIMARY_COLOR = '#10B981';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#e3f2fd',
-  },
-  gradientBackground: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
+    backgroundColor: '#F8FAFC',
   },
   scrollContent: {
-    padding: 16,
+    padding: Spacing.lg,
+    paddingBottom: 120,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-    paddingTop: 10,
+    marginBottom: Spacing.lg,
+    paddingTop: Spacing.md,
   },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 16,
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadow.md,
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'white',
-    borderWidth: 3,
-    borderColor: '#5c6bc0',
-    elevation: 5,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    color: '#283593',
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 16,
+  headerTitle: {
+    flex: 1,
+    marginLeft: Spacing.md,
   },
   title: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginBottom: 20,
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1E293B',
   },
-  card: {
-    marginBottom: 16,
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: '#fff',
-    elevation: 2,
+  subtitle: {
+    fontSize: 14,
+    color: '#64748B',
+    marginTop: 2,
   },
-  input: {
-    marginBottom: 16,
-    backgroundColor: '#fff',
+  progressCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    ...Shadow.md,
   },
-  scheduleDay: {
+  progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
+    marginBottom: Spacing.sm,
   },
-  timeContainer: {
-    flexDirection: 'row',
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  progressPercent: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PRIMARY_COLOR,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#E2E8F0',
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: PRIMARY_COLOR,
+    borderRadius: BorderRadius.full,
+  },
+  profileCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
     alignItems: 'center',
-    flex: 1,
+    ...Shadow.md,
   },
-  timeText: {
-    marginHorizontal: 8,
-    color: '#666',
+  profileImageContainer: {
+    position: 'relative',
+    marginBottom: Spacing.md,
   },
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  profileImage: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
-    padding: 12,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 8,
-    marginBottom: 16,
+    alignItems: 'center',
   },
-  uploadButtonText: {
-    marginLeft: 8,
-    color: '#333',
+  cameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: PRIMARY_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  profileHint: {
+    fontSize: 14,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: '#F8FAFC',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  cardIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: '#DCFCE7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E293B',
+  },
+  cardContent: {
+    padding: Spacing.md,
+  },
+  inputRow: {
+    marginBottom: Spacing.md,
+  },
+  scheduleCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
+    overflow: 'hidden',
+  },
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  dayRowLast: {
+    borderBottomWidth: 0,
+  },
+  dayInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dayName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1E293B',
+    marginLeft: Spacing.sm,
+  },
+  dayTime: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: Spacing.sm,
+  },
+  dayUnavailable: {
+    fontSize: 13,
+    color: '#94A3B8',
+    marginLeft: Spacing.sm,
+    fontStyle: 'italic',
+  },
+  timeButton: {
+    backgroundColor: '#F1F5F9',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginHorizontal: 2,
+  },
+  timeButtonText: {
+    fontSize: 13,
+    color: '#64748B',
+  },
+  uploadCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    ...Shadow.md,
+    overflow: 'hidden',
+  },
+  uploadArea: {
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#E2E8F0',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.xl,
+    alignItems: 'center',
+    margin: Spacing.md,
+  },
+  uploadIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  uploadText: {
+    fontSize: 15,
+    color: '#64748B',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  uploadHint: {
+    fontSize: 13,
+    color: '#94A3B8',
   },
   documentPreview: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+    backgroundColor: '#F0FDF4',
+    padding: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: '#BBF7D0',
   },
   documentIcon: {
-    marginRight: 8,
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: PRIMARY_COLOR,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.sm,
+  },
+  documentInfo: {
+    flex: 1,
   },
   documentName: {
-    flex: 1,
-    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1E293B',
+  },
+  documentSize: {
+    fontSize: 12,
+    color: '#64748B',
   },
   submitButton: {
-    marginTop: 20,
-    borderRadius: 25,
-    backgroundColor: '#3949ab',
-    margin: 20,
-    padding: 12,
-    elevation: 3,
+    marginTop: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadow.lg,
   },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-    color: '#333',
-  },
-  timeButton: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 6,
-    padding: 10,
-    marginHorizontal: 4,
+  submitButtonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+    backgroundColor: PRIMARY_COLOR,
+  },
+  submitButtonText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  bottomSpacer: {
+    height: Spacing.xxl,
   },
 });
 
@@ -160,29 +317,35 @@ const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Sat
 const Credentials = () => {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
-  const { uid } = useLocalSearchParams();
   const [name, setName] = useState("");
   const [specialization, setSpecialization] = useState("");
-  const [experience, setExperience] = useState<number | null>(null);
+  const [experience, setExperience] = useState("");
   const [clinicName, setClinicName] = useState("");
   const [clinicAddress, setClinicAddress] = useState("");
   const [degree, setDegree] = useState("");
   const [licenseNo, setLicenseNo] = useState("");
   const [image, setImage] = useState<string | null>(null);
-  const [document, setDocument] = useState<{ uri: string; name: string; mimeType: string } | null>(null);
+  const [document, setDocument] = useState<{ uri: string; name: string; mimeType: string; size?: number } | null>(null);
 
-  const [schedule, setSchedule] = useState<Record<string, { start: string; end: string }>>(
-    daysOfWeek.reduce((acc, day) => ({ ...acc, [day]: { start: "", end: "" } }), {})
+  const [schedule, setSchedule] = useState<Record<string, { enabled: boolean; start: string; end: string }>>(
+    daysOfWeek.reduce((acc, day) => ({ ...acc, [day]: { enabled: false, start: "09:00", end: "17:00" } }), {})
   );
 
   const [showStartPicker, setShowStartPicker] = useState<string | null>(null);
   const [showEndPicker, setShowEndPicker] = useState<string | null>(null);
 
+  const calculateProgress = () => {
+    const fields = [name, specialization, experience, clinicName, clinicAddress, degree, licenseNo, document];
+    const filledFields = fields.filter(f => f && (typeof f === 'string' ? f.trim() !== '' : true));
+    return Math.round((filledFields.length / fields.length) * 100);
+  };
+
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      quality: 1,
+      aspect: [1, 1],
+      quality: 0.8,
     });
     if (!result.canceled) setImage(result.assets[0].uri);
   };
@@ -191,13 +354,36 @@ const Credentials = () => {
     const result = await DocumentPicker.getDocumentAsync({ type: "*/*", multiple: false });
     if (!result.canceled && result.assets?.length > 0) {
       const file = result.assets[0];
-      setDocument({ uri: file.uri, name: file.name ?? "Unnamed", mimeType: file.mimeType ?? "" });
+      setDocument({ uri: file.uri, name: file.name ?? "Document", mimeType: file.mimeType ?? "", size: file.size });
     }
   };
 
-  const updateTime = (day: string, field: "start" | "end", value: Date) => {
-    const time = value.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [field]: time } }));
+  const formatTime = (time: string) => {
+    if (!time) return "Set time";
+    const [hours, minutes] = time.split(':');
+    const h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const handleTimeChange = (day: string, field: 'start' | 'end', event: DateTimePickerEvent, date?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowStartPicker(null);
+      setShowEndPicker(null);
+    }
+    if (date) {
+      const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      setSchedule(prev => ({ ...prev, [day]: { ...prev[day], [field]: time } }));
+    }
+  };
+
+  const getCurrentTime = (day: string, field: 'start' | 'end') => {
+    const time = schedule[day][field];
+    const [hours, minutes] = time.split(':');
+    const d = new Date();
+    d.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    return d;
   };
 
   const handleSubmit = async () => {
@@ -209,7 +395,6 @@ const Credentials = () => {
         return;
       }
 
-      // Validate required fields
       const requiredFields = [
         { field: name, name: 'Full Name' },
         { field: specialization, name: 'Specialization' },
@@ -220,7 +405,7 @@ const Credentials = () => {
         { field: licenseNo, name: 'License Number' },
       ];
 
-      const missingField = requiredFields.find(field => !field.field);
+      const missingField = requiredFields.find(field => !field.field.toString().trim());
       if (missingField) {
         Alert.alert("Error", `Please fill in the ${missingField.name} field.`);
         return;
@@ -230,8 +415,7 @@ const Credentials = () => {
         Alert.alert("Error", "Please upload your license document.");
         return;
       }
-      
-      // Prepare vet data
+
       const vetData = {
         name,
         specialization,
@@ -246,169 +430,326 @@ const Credentials = () => {
         documentType: document.mimeType,
         imageUrl: image || null,
         userId: currentUserUid,
-        status: 'pending', // You can use this for admin approval
+        status: 'pending',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
-      // Get a reference to Firestore
       const db = getFirestore();
-      
-      // Save to Firestore
       await setDoc(doc(db, 'vets', currentUserUid), vetData, { merge: true });
-      
-      // Set the credentials filled flag
       await AsyncStorage.setItem('@vet_credentials_filled', 'true');
-      
-      // Show success message
+
       Alert.alert(
-        "Success", 
+        "Success",
         "Your credentials have been submitted successfully!\n\nYour profile is under review. You'll be notified once approved.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Navigate to home screen after successful submission
-              router.replace('/vets/home');
-            }
-          }
-        ]
+        [{ text: "OK", onPress: () => router.replace('/vets/home') }]
       );
-      
     } catch (error: any) {
       console.error("Error saving vet credentials:", error);
-      let errorMessage = "Failed to save credentials. Please try again.";
-      
-      if (error?.code === 'permission-denied') {
-        errorMessage = "You don't have permission to perform this action.";
-      } else if (error?.code === 'unavailable') {
-        errorMessage = "Network error. Please check your internet connection and try again.";
-      }
-      
-      Alert.alert("Error", errorMessage);
+      Alert.alert("Error", "Failed to save credentials. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.gradientBackground} />
+  const progress = calculateProgress();
 
+  return (
+    <View style={styles.container}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "android" ? 90 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === 'android' ? 90 : 0}
       >
-
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 20, paddingBottom: 150 }} // keeps submit button above android nav
+            contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.title}>Veterinarian Credentials</Text>
-
-            {/* Photo */}
-            <View style={{ flexDirection: "row", marginBottom: 20 }}>
-              <TouchableOpacity onPress={pickImage}>
-                <View style={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 70,
-                  backgroundColor: "white",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  marginRight: 20
-                }}>
-                  {image ?
-                    <Image source={{ uri: image }} style={{ width: "100%", height: "100%", borderRadius: 70 }} /> :
-                    <MaterialCommunityIcons name="camera" size={40} />}
-                </View>
+            <View style={styles.header}>
+              <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                <MaterialCommunityIcons name="arrow-left" size={24} color="#1E293B" />
               </TouchableOpacity>
-
-              <View style={{ flex: 1 }}>
-                <TextInput label="Full Name" value={name} onChangeText={setName} style={{ backgroundColor: "white" }} />
-                <TextInput label="Specialization" value={specialization} onChangeText={setSpecialization} style={{ backgroundColor: "white", marginTop: 10 }} />
-                <TextInput
-                  label="Experience (years)"
-                  value={experience ? experience.toString() : ""}
-                  keyboardType="numeric"
-                  onChangeText={(t) => setExperience(Number(t))}
-                  style={{ backgroundColor: "white", marginTop: 10 }}
-                />
+              <View style={styles.headerTitle}>
+                <Text style={styles.title}>Complete Your Profile</Text>
+                <Text style={styles.subtitle}>Help pet owners find you</Text>
               </View>
             </View>
 
-            {/* Clinic */}
-            <Text style={styles.sectionTitle}>Clinic Details</Text>
-            <TextInput label="Clinic Name" value={clinicName} onChangeText={setClinicName} style={{ backgroundColor: "white", marginVertical: 5 }} />
-            <TextInput label="Clinic Address" value={clinicAddress} onChangeText={setClinicAddress} style={{ backgroundColor: "white", marginVertical: 5 }} />
+            <View style={styles.progressCard}>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressText}>Profile Completion</Text>
+                <Text style={styles.progressPercent}>{progress}%</Text>
+              </View>
+              <View style={styles.progressBar}>
+                <View style={[styles.progressFill, { width: `${progress}%` }]} />
+              </View>
+            </View>
 
-            {/* Schedule */}
-            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Weekly Schedule</Text>
-
-            {daysOfWeek.map(day => (
-              <View key={day} style={{ marginBottom: 10 }}>
-                <Text style={{ fontWeight: "bold" }}>{day}</Text>
-                <View style={{ flexDirection: "row", marginTop: 5 }}>
-                  <Button onPress={() => setShowStartPicker(day)}>{schedule[day].start || "Start"}</Button>
-                  <View style={{ width: 10 }} />
-                  <Button onPress={() => setShowEndPicker(day)}>{schedule[day].end || "End"}</Button>
+            <View style={styles.profileCard}>
+              <TouchableOpacity style={styles.profileImageContainer} onPress={pickImage}>
+                <View style={styles.profileImage}>
+                  {image ? (
+                    <Image source={{ uri: image }} style={{ width: 120, height: 120, borderRadius: 60 }} />
+                  ) : (
+                    <MaterialCommunityIcons name="account" size={60} color="#94A3B8" />
+                  )}
                 </View>
+                <View style={styles.cameraButton}>
+                  <MaterialCommunityIcons name="camera" size={20} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+              <Text style={styles.profileHint}>Tap to add photo</Text>
+            </View>
 
-                {showStartPicker === day && (
-                  <DateTimePicker
-                    value={new Date()}
-                    mode="time"
-                    onChange={(e, d) => {
-                      setShowStartPicker(null);
-                      if (d) updateTime(day, "start", d);
-                    }}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconContainer, { backgroundColor: '#DCFCE7' }]}>
+                  <MaterialCommunityIcons name="account" size={20} color={PRIMARY_COLOR} />
+                </View>
+                <Text style={styles.cardTitle}>Personal Information</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Full Name"
+                    value={name}
+                    onChangeText={setName}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
                   />
-                )}
+                </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Specialization"
+                    value={specialization}
+                    onChangeText={setSpecialization}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
+                    placeholder="e.g., Small Animal Medicine"
+                  />
+                </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Years of Experience"
+                    value={experience}
+                    onChangeText={setExperience}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    keyboardType="numeric"
+                    style={{ backgroundColor: '#FFFFFF' }}
+                  />
+                </View>
+              </View>
+            </View>
 
-                {showEndPicker === day && (
-                  <DateTimePicker
-                    value={new Date()}
-                    mode="time"
-                    onChange={(e, d) => {
-                      setShowEndPicker(null);
-                      if (d) updateTime(day, "end", d);
-                    }}
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconContainer, { backgroundColor: '#FEE2E2' }]}>
+                  <MaterialCommunityIcons name="hospital-building" size={20} color="#EF4444" />
+                </View>
+                <Text style={styles.cardTitle}>Clinic Details</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Clinic Name"
+                    value={clinicName}
+                    onChangeText={setClinicName}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
                   />
+                </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Clinic Address"
+                    value={clinicAddress}
+                    onChangeText={setClinicAddress}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.scheduleCard}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                  <MaterialCommunityIcons name="calendar-clock" size={20} color="#F59E0B" />
+                </View>
+                <Text style={styles.cardTitle}>Weekly Schedule</Text>
+              </View>
+              {daysOfWeek.map((day, index) => (
+                <View
+                  key={day}
+                  style={[
+                    styles.dayRow,
+                    index === daysOfWeek.length - 1 && styles.dayRowLast
+                  ]}
+                >
+                  <Switch
+                    value={schedule[day].enabled}
+                    onValueChange={(enabled) => setSchedule(prev => ({
+                      ...prev,
+                      [day]: { ...prev[day], enabled }
+                    }))}
+                    color={PRIMARY_COLOR}
+                    style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
+                  />
+                  <View style={styles.dayInfo}>
+                    <Text style={styles.dayName}>{day}</Text>
+                    {schedule[day].enabled ? (
+                      <View style={styles.dayTime}>
+                        <TouchableOpacity
+                          style={styles.timeButton}
+                          onPress={() => setShowStartPicker(day)}
+                        >
+                          <Text style={styles.timeButtonText}>{formatTime(schedule[day].start)}</Text>
+                        </TouchableOpacity>
+                        <Text style={{ color: '#64748B', marginHorizontal: 4 }}>to</Text>
+                        <TouchableOpacity
+                          style={styles.timeButton}
+                          onPress={() => setShowEndPicker(day)}
+                        >
+                          <Text style={styles.timeButtonText}>{formatTime(schedule[day].end)}</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <Text style={styles.dayUnavailable}>Unavailable</Text>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                  <MaterialCommunityIcons name="certificate" size={20} color="#6366F1" />
+                </View>
+                <Text style={styles.cardTitle}>Professional Details</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="Degree"
+                    value={degree}
+                    onChangeText={setDegree}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
+                    placeholder="e.g., DVM, VMD"
+                  />
+                </View>
+                <View style={styles.inputRow}>
+                  <TextInput
+                    label="License Number"
+                    value={licenseNo}
+                    onChangeText={setLicenseNo}
+                    mode="outlined"
+                    outlineColor="#E2E8F0"
+                    activeOutlineColor={PRIMARY_COLOR}
+                    style={{ backgroundColor: '#FFFFFF' }}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.uploadCard}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardIconContainer, { backgroundColor: '#FDF2F8' }]}>
+                  <MaterialCommunityIcons name="file-document" size={20} color="#EC4899" />
+                </View>
+                <Text style={styles.cardTitle}>Upload License Certificate</Text>
+              </View>
+              <TouchableOpacity onPress={pickDocument} activeOpacity={0.7}>
+                <View style={styles.uploadArea}>
+                  <View style={styles.uploadIcon}>
+                    <MaterialCommunityIcons name="cloud-upload" size={32} color="#64748B" />
+                  </View>
+                  <Text style={styles.uploadText}>Tap to upload your license document</Text>
+                  <Text style={styles.uploadHint}>PDF, JPG, PNG up to 10MB</Text>
+                </View>
+              </TouchableOpacity>
+              {document && (
+                <View style={styles.documentPreview}>
+                  <View style={styles.documentIcon}>
+                    <MaterialCommunityIcons name="file-pdf-box" size={24} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.documentInfo}>
+                    <Text style={styles.documentName} numberOfLines={1}>{document.name}</Text>
+                    {document.size && (
+                      <Text style={styles.documentSize}>
+                        {(document.size / 1024 / 1024).toFixed(2)} MB
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity onPress={() => setDocument(null)}>
+                    <MaterialCommunityIcons name="close-circle" size={24} color="#94A3B8" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleSubmit}
+              activeOpacity={0.8}
+              disabled={isLoading}
+            >
+              <View style={styles.submitButtonContent}>
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                    <Text style={styles.submitButtonText}>Submit for Review</Text>
+                  </>
                 )}
               </View>
-            ))}
-
-            {/* Degree */}
-            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Professional Details</Text>
-            <TextInput label="Degree" value={degree} onChangeText={setDegree} style={{ backgroundColor: "white", marginVertical: 5 }} />
-            <TextInput label="License Number" value={licenseNo} onChangeText={setLicenseNo} style={{ backgroundColor: "white", marginVertical: 5 }} />
-
-            {/* Document */}
-            <Text style={[styles.sectionTitle, { marginTop: 20 }]}>Upload Certificate</Text>
-            <TouchableOpacity onPress={pickDocument} style={{ backgroundColor: "white", padding: 10, borderRadius: 5 }}>
-              <Text>{document ? document.name : "Choose File"}</Text>
             </TouchableOpacity>
 
-            {/* --- Extra bottom spacing so Android nav doesn't hide the button --- */}
-            <View style={{ height: 40 }} />
-
-            <Button 
-              mode="contained" 
-              onPress={handleSubmit} 
-              style={styles.submitButton}
-              labelStyle={{ fontSize: 16, fontWeight: '600' }}
-            >
-              Submit
-            </Button>
-
-            <View style={{ height: 80 }} /> 
+            <View style={styles.bottomSpacer} />
           </ScrollView>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+      {showStartPicker && (
+        <DateTimePicker
+          value={getCurrentTime(showStartPicker, 'start')}
+          mode="time"
+          onChange={(e, d) => {
+            setShowStartPicker(null);
+            if (d) handleTimeChange(showStartPicker, 'start', e, d);
+          }}
+        />
+      )}
+
+      {showEndPicker && (
+        <DateTimePicker
+          value={getCurrentTime(showEndPicker, 'end')}
+          mode="time"
+          onChange={(e, d) => {
+            setShowEndPicker(null);
+            if (d) handleTimeChange(showEndPicker, 'end', e, d);
+          }}
+        />
+      )}
+    </View>
   );
 };
 
