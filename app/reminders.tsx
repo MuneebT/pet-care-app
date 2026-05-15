@@ -80,6 +80,16 @@ const RemindersScreen: React.FC = () => {
     };
   }, []);
 
+  const safeToDate = (value: unknown): Date => {
+    if (!value) return new Date();
+    if (typeof value === 'object' && 'toDate' in (value as object)) {
+      return (value as { toDate: () => Date }).toDate();
+    }
+    if (value instanceof Date) return value;
+    if (typeof value === 'string' || typeof value === 'number') return new Date(value);
+    return new Date();
+  };
+
   const fetchReminders = async (userId: string) => {
     try {
       setIsLoading(true);
@@ -104,8 +114,6 @@ const RemindersScreen: React.FC = () => {
       
       for (const docSnapshot of querySnapshot.docs) {
         const data = docSnapshot.data() as DocumentData;
-        const reminderDate = data.date?.toDate() || new Date();
-        
         const reminder: Reminder = {
           id: docSnapshot.id,
           userId: data.userId,
@@ -113,11 +121,11 @@ const RemindersScreen: React.FC = () => {
           vetId: data.vetId,
           petName: 'Loading...',
           vetName: 'Loading...',
-          date: reminderDate,
+          date: safeToDate(data.date),
           time: data.time || '12:00 PM',
           status: data.status || 'confirmed',
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
+          createdAt: safeToDate(data.createdAt),
+          updatedAt: safeToDate(data.updatedAt),
         };
 
         try {
@@ -514,9 +522,11 @@ const styles = StyleSheet.create({
   },
   bottomNavContainer: {
     position: "absolute",
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
+    pointerEvents: 'box-none',
   },
   emptyState: {
     flex: 1,

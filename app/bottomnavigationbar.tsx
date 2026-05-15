@@ -2,14 +2,15 @@ import { auth } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Link, useSegments } from 'expo-router';
 import { onAuthStateChanged } from 'firebase/auth';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   LayoutAnimation,
+  Pressable,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  useColorScheme
 } from 'react-native';
 import { BorderRadius, Spacing, FontSize, Shadow, FontWeight, currentColors } from '@/constants/theme';
 
@@ -36,11 +37,33 @@ const TAB_COLORS = {
 };
 
 const GRADIENT_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981'];
+const AUTO_HIDE_DELAY_MS = 2500;
 
 const BottomNavigationBar = () => {
   const [currentUser, setCurrentUser] = useState(auth.currentUser);
   const segments = useSegments();
   const [activeRoute, setActiveRoute] = useState<string>(segments.length > 0 ? segments[segments.length - 1] : 'home');
+  const [isVisible, setIsVisible] = useState(true);
+  const [navAnimation] = useState(() => new Animated.Value(1));
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetAutoHide = () => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+    }
+
+    hideTimerRef.current = setTimeout(() => {
+      Animated.timing(navAnimation, {
+        toValue: 0,
+        duration: 220,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setIsVisible(false);
+        }
+      });
+    }, AUTO_HIDE_DELAY_MS);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -59,6 +82,33 @@ const BottomNavigationBar = () => {
       setActiveRoute(currentRoute);
     }
   }, [segments]);
+
+  useEffect(() => {
+    setIsVisible(true);
+    Animated.timing(navAnimation, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+    resetAutoHide();
+
+    return () => {
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+      }
+    };
+  }, [activeRoute, navAnimation]);
+
+  const showNavigation = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsVisible(true);
+    Animated.timing(navAnimation, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+    resetAutoHide();
+  };
 
   const navItems: NavItem[] = [
     { 
@@ -98,76 +148,103 @@ const BottomNavigationBar = () => {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.navBarWrapper}>
-        <View style={styles.accentBorder}>
-          {GRADIENT_COLORS.map((color, index) => (
-            <View 
-              key={index} 
-              style={[
-                styles.accentSegment, 
-                { backgroundColor: color, flex: 1 }
-              ]} 
-            />
-          ))}
-        </View>
-        
-        <View style={styles.navBar}>
-          {navItems.map((item) => {
-            const isActive = activeRoute === item.route.split('/').pop();
-            const routeKey = item.route.split('/').pop() as keyof typeof TAB_COLORS;
-            const itemColor = TAB_COLORS[routeKey] || item.color;
-            
-            return (
-              <Link 
-                key={item.name}
-                href={item.route}
-                style={styles.navButton}
-                asChild
-              >
-                <TouchableOpacity 
-                  activeOpacity={0.7}
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setActiveRoute(item.route.split('/').pop() || 'home');
-                  }}
+    <>
+      {!isVisible && (
+        <Pressable style={styles.revealOverlay} onPress={showNavigation} />
+      )}
+
+      <Animated.View
+        pointerEvents={isVisible ? 'auto' : 'none'}
+        style={[
+          styles.container,
+          {
+            opacity: navAnimation,
+            transform: [
+              {
+                translateY: navAnimation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [110, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.navBarWrapper}>
+          <View style={styles.accentBorder}>
+            {GRADIENT_COLORS.map((color, index) => (
+              <View 
+                key={index} 
+                style={[
+                  styles.accentSegment, 
+                  { backgroundColor: color, flex: 1 }
+                ]} 
+              />
+            ))}
+          </View>
+          
+          <View style={styles.navBar}>
+            {navItems.map((item) => {
+              const isActive = activeRoute === item.route.split('/').pop();
+              const routeKey = item.route.split('/').pop() as keyof typeof TAB_COLORS;
+              const itemColor = TAB_COLORS[routeKey] || item.color;
+              
+              return (
+                <Link 
+                  key={item.name}
+                  href={item.route}
+                  style={styles.navButton}
+                  asChild
                 >
-                  <View style={[
-                    styles.iconContainer,
-                    isActive && [styles.activeIconContainer, { backgroundColor: itemColor }],
-                  ]}>
-                    <MaterialCommunityIcons
-                      name={item.icon as any}
-                      size={24}
-                      color={isActive ? '#FFFFFF' : '#94A3B8'}
-                      style={isActive ? styles.activeIcon : undefined}
-                    />
-                  </View>
-                  <Text style={[
-                    styles.navText,
-                    { 
-                      color: isActive ? itemColor : '#94A3B8',
-                      fontWeight: isActive ? FontWeight.semibold : FontWeight.regular
-                    }
-                  ]}>
-                    {item.name}
-                  </Text>
-                </TouchableOpacity>
-              </Link>
-            );
-          })}
+                  <TouchableOpacity 
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      showNavigation();
+                      setActiveRoute(item.route.split('/').pop() || 'home');
+                    }}
+                  >
+                    <View style={[
+                      styles.iconContainer,
+                      isActive && [styles.activeIconContainer, { backgroundColor: itemColor }],
+                    ]}>
+                      <MaterialCommunityIcons
+                        name={item.icon as any}
+                        size={24}
+                        color={isActive ? '#FFFFFF' : '#94A3B8'}
+                        style={isActive ? styles.activeIcon : undefined}
+                      />
+                    </View>
+                    <Text style={[
+                      styles.navText,
+                      { 
+                        color: isActive ? itemColor : '#94A3B8',
+                        fontWeight: isActive ? FontWeight.semibold : FontWeight.regular
+                      }
+                    ]}>
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                </Link>
+              );
+            })}
+          </View>
         </View>
-      </View>
-    </View>
+      </Animated.View>
+    </>
   );
 };
 
 const styles = StyleSheet.create({
+  revealOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+  },
   container: {
     position: 'absolute',
     bottom: Spacing.lg,
     left: Spacing.md,
     right: Spacing.md,
+    zIndex: 30,
   },
   navBarWrapper: {
     borderRadius: BorderRadius.xxl,
