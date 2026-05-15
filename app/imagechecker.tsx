@@ -1,730 +1,576 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Dimensions,
   Image,
-  SafeAreaView,
+  Modal,
   ScrollView,
-  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
-  Platform,
-  PermissionsAndroid,
-} from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useTheme } from 'react-native-paper';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import {
   BorderRadius,
-  Spacing,
+  currentColors,
   FontSize,
   FontWeight,
   Shadow,
-  currentColors,
-} from '@/constants/theme';
-import { db } from '@/services/firebase';
-import { collection, addDoc, serverTimestamp, query, getDocs, orderBy } from 'firebase/firestore';
-import BottomNavigationBar from './bottomnavigationbar';
+  Spacing,
+} from "@/constants/theme";
+import {
+  getMedicinesForDisease,
+  MedicineInfo,
+} from "@/data/medications";
 
-const { width } = Dimensions.get('window');
+type PredictionTop = {
+  disease: string;
+  confidence: number;
+};
 
-interface Pet {
-  id: string;
-  name: string;
-  species?: string;
-}
+type PredictionResult = {
+  top1: PredictionTop;
+  top2: PredictionTop;
+};
 
-interface ScanRecord {
-  id: string;
-  imageUri: string;
-  petId?: string;
-  petName?: string;
-  scannedAt: any;
-  status: string;
-}
-
-const ImageChecker = () => {
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedPet, setSelectedPet] = useState<Pet | null>(null);
-  const [pets, setPets] = useState<Pet[]>([]);
-  const [scanHistory, setScanHistory] = useState<ScanRecord[]>([]);
+const Imagechecker = () => {
+  const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showPetSelector, setShowPetSelector] = useState(false);
-  const theme = useTheme();
+  const [result, setResult] = useState<PredictionResult | null>(null);
+  const [rejected, setRejected] = useState<string | null>(null);
+  const [showTreatment, setShowTreatment] = useState(false);
+  const [animalChoice, setAnimalChoice] = useState<"cat" | "dog">("cat");
+  const [catTop2, setCatTop2] = useState<PredictionResult | null>(null);
+  const [dogTop2, setDogTop2] = useState<PredictionResult | null>(null);
+  const [animalScores, setAnimalScores] = useState<{
+    cat: number;
+    dog: number;
+    predicted: "cat" | "dog";
+  } | null>(null);
 
-  const getUserId = async (): Promise<string | null> => {
-    try {
-      const storedUid = await AsyncStorage.getItem('userId');
-      return storedUid;
-    } catch (error) {
-      console.error('Error getting user ID:', error);
-      return null;
-    }
-  };
+  const scrollRef = useRef<ScrollView>(null);
+  const [shouldScrollToResults, setShouldScrollToResults] = useState(false);
 
-  const requestPermissions = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: 'Camera Permission',
-            message: 'This app needs camera access to scan pet images.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-        await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
-          {
-            title: 'Storage Permission',
-            message: 'This app needs storage access to select images.',
-            buttonNeutral: 'Ask Me Later',
-            buttonNegative: 'Cancel',
-            buttonPositive: 'OK',
-          }
-        );
-      } catch (err) {
-        console.warn(err);
-      }
-    }
-
-    const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
-    const { status: mediaStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (cameraStatus !== 'granted' || mediaStatus !== 'granted') {
-      Alert.alert(
-        'Permissions Required',
-        'Please grant camera and photo library permissions to use the image scanner.'
-      );
-    }
-  };
-
-  const fetchPets = async () => {
-    try {
-      const userId = await getUserId();
-      if (!userId) return;
-
-      const petsRef = collection(db, 'users', userId, 'pets');
-      const snapshot = await getDocs(petsRef);
-      const petsList: Pet[] = [];
-      snapshot.forEach((doc) => {
-        petsList.push({ id: doc.id, ...doc.data() } as Pet);
-      });
-      setPets(petsList);
-    } catch (error) {
-      console.error('Error fetching pets:', error);
-    }
-  };
-
-  const fetchScanHistory = async () => {
-    try {
-      const userId = await getUserId();
-      if (!userId) return;
-
-      const scansRef = collection(db, 'users', userId, 'imageScans');
-      const q = query(scansRef, orderBy('scannedAt', 'desc'));
-      const snapshot = await getDocs(q);
-      const scans: ScanRecord[] = [];
-      
-      snapshot.forEach((doc) => {
-        scans.push({ id: doc.id, ...doc.data() } as ScanRecord);
-      });
-      setScanHistory(scans.slice(0, 10));
-    } catch (error) {
-      console.error('Error fetching scan history:', error);
-    }
-  };
+  const API_URL = "http://192.168.0.105:5000/predict";
 
   useEffect(() => {
-    requestPermissions();
-    fetchPets();
-    fetchScanHistory();
-  }, []);
+    if (!result && !rejected) return;
+    setShouldScrollToResults(true);
+  }, [result, rejected]);
 
-  const pickImageFromCamera = async () => {
-    try {
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
+  const mapImageDiseaseToTreatmentKey = (disease: string): string | null => {
+    if (disease.toLowerCase().includes("healthy")) return null;
+    return disease;
+  };
 
-      if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image from camera:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+  const top1TreatmentKey = useMemo(() => {
+    if (!result) return null;
+    return mapImageDiseaseToTreatmentKey(result.top1.disease);
+  }, [result]);
+
+  const top2TreatmentKey = useMemo(() => {
+    if (!result) return null;
+    return mapImageDiseaseToTreatmentKey(result.top2.disease);
+  }, [result]);
+
+  const top1Medicines: MedicineInfo[] = useMemo(() => {
+    if (!result || !top1TreatmentKey) return [];
+    return getMedicinesForDisease(top1TreatmentKey);
+  }, [result, top1TreatmentKey]);
+
+  const top2Medicines: MedicineInfo[] = useMemo(() => {
+    if (!result || !top2TreatmentKey) return [];
+    return getMedicinesForDisease(top2TreatmentKey);
+  }, [result, top2TreatmentKey]);
+
+  const pickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    });
+    if (!res.canceled) {
+      setImage(res.assets[0].uri);
+      setResult(null);
+      setRejected(null);
+      setShowTreatment(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
     }
   };
 
-  const pickImageFromGallery = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets[0]) {
-        setSelectedImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image from gallery:', error);
-      Alert.alert('Error', 'Failed to select image. Please try again.');
-    }
-  };
-
-  const handleScan = async () => {
-    if (!selectedImage) {
-      Alert.alert('No Image', 'Please select an image first.');
+  const takePicture = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Camera permission required", "Please allow camera access to take a photo.");
       return;
     }
+    const res = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 0.95,
+    });
+    if (!res.canceled) {
+      setImage(res.assets[0].uri);
+      setResult(null);
+      setRejected(null);
+      setShowTreatment(false);
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 50);
+    }
+  };
 
+  const analyzeImage = async () => {
+    if (!image || loading) return;
     setLoading(true);
-    try {
-      const userId = await getUserId();
-      if (!userId) {
-        Alert.alert('Error', 'User not authenticated.');
-        return;
-      }
+    setResult(null);
+    setRejected(null);
 
-      const scansRef = collection(db, 'users', userId, 'imageScans');
-      await addDoc(scansRef, {
-        imageUri: selectedImage,
-        petId: selectedPet?.id || null,
-        petName: selectedPet?.name || null,
-        scannedAt: serverTimestamp(),
-        status: 'pending',
+    try {
+      const formData = new FormData();
+      formData.append("image", {
+        uri: image,
+        name: "pet-image.jpg",
+        type: "image/jpeg",
+      } as any);
+      formData.append("animal_type", animalChoice);
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        body: formData,
       });
 
-      Alert.alert(
-        'Image Saved',
-        'Your image has been saved for analysis. Results will be available soon.',
-        [
-          { text: 'OK', onPress: () => {
-            setSelectedImage(null);
-            setSelectedPet(null);
-            fetchScanHistory();
-          }}
-        ]
-      );
-    } catch (error) {
-      console.error('Error saving scan:', error);
-      Alert.alert('Error', 'Failed to save scan. Please try again.');
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`API error: ${response.status}. ${text}`);
+      }
+
+      const data = await response.json();
+
+      // ── NOT_A_PET REJECTION ────────────────────────────────────────
+      if (data?.rejected === true) {
+        setRejected(data.reason ?? "This image was not recognized as a pet skin photo.");
+        return;
+      }
+      // ──────────────────────────────────────────────────────────────
+
+      const overallResult: PredictionResult = {
+        top1: {
+          disease:    String(data?.top1?.disease ?? ""),
+          confidence: Number(data?.top1?.confidence ?? 0),
+        },
+        top2: {
+          disease:    String(data?.top2?.disease ?? ""),
+          confidence: Number(data?.top2?.confidence ?? 0),
+        },
+      };
+
+      const predictedAnimal: "cat" | "dog" =
+        data?.animal?.predicted === "dog" ? "dog" : "cat";
+      setAnimalChoice(predictedAnimal);
+
+      if (data?.animal?.cat != null && data?.animal?.dog != null) {
+        setAnimalScores({
+          cat:       Number(data.animal.cat ?? 0),
+          dog:       Number(data.animal.dog ?? 0),
+          predicted: predictedAnimal,
+        });
+      }
+
+      if (data?.catTop2) setCatTop2({ top1: data.catTop2.top1, top2: data.catTop2.top2 });
+      if (data?.dogTop2) setDogTop2({ top1: data.dogTop2.top1, top2: data.dogTop2.top2 });
+
+      setResult(overallResult);
+    } catch (err: any) {
+      Alert.alert("Analyze failed", err?.message ? String(err.message) : "Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const clearImage = () => {
-    setSelectedImage(null);
-    setSelectedPet(null);
-  };
-
-  const handleSelectPet = (pet: Pet | null) => {
-    setSelectedPet(pet);
-    setShowPetSelector(false);
-  };
-
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'Just now';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
+  const isHealthy     = result?.top1.disease.toLowerCase().includes("healthy");
+  const isEyeOrDental = result?.top1.disease.toLowerCase().includes("eye") ||
+                        result?.top1.disease.toLowerCase().includes("dental");
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: currentColors.background }]}>
-      <StatusBar
-        barStyle={theme.dark ? 'light-content' : 'dark-content'}
-        backgroundColor={currentColors.background}
-      />
-      
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: currentColors.text }]}>
-            Image Scanner
-          </Text>
-          <Text style={[styles.subtitle, { color: currentColors.textSecondary }]}>
-            Upload a photo of your pet for health analysis
-          </Text>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      showsVerticalScrollIndicator={false}
+    >
+      <View style={styles.bgCircle1} pointerEvents="none" />
+      <View style={styles.bgCircle2} pointerEvents="none" />
+
+      {/* Hero */}
+      <View style={styles.hero}>
+        <View style={styles.heroRow}>
+          <MaterialCommunityIcons name="paw" size={28} color={currentColors.white} />
+          <Text style={styles.heroTitle}>PetScan AI</Text>
+        </View>
+        <Text style={styles.heroSubtitle}>
+          Upload or take a photo to detect possible pet diseases.
+        </Text>
+        <Text style={styles.heroDisclaimer}>
+          Educational use only. For serious symptoms, please contact a veterinarian.
+        </Text>
+      </View>
+
+      {/* Image section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Get an image</Text>
+          <View
+            style={[
+              styles.statusPill,
+              { backgroundColor: image ? `${currentColors.secondary}15` : `${currentColors.textTertiary}20` },
+            ]}
+          >
+            <Text
+              style={[
+                styles.statusPillText,
+                { color: image ? currentColors.secondary : currentColors.textTertiary },
+              ]}
+            >
+              {image ? "Photo ready" : "No photo yet"}
+            </Text>
+          </View>
         </View>
 
-        {!selectedImage ? (
-          <View style={styles.uploadSection}>
-            <TouchableOpacity
-              style={[styles.uploadArea, { backgroundColor: currentColors.surface, borderColor: currentColors.border }]}
-              onPress={pickImageFromCamera}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: `${currentColors.primary}15` }]}>
-                <MaterialCommunityIcons
-                  name="camera"
-                  size={48}
-                  color={currentColors.primary}
-                />
-              </View>
-              <Text style={[styles.uploadTitle, { color: currentColors.text }]}>
-                Take Photo
-              </Text>
-              <Text style={[styles.uploadDesc, { color: currentColors.textSecondary }]}>
-                Use your camera to capture a photo
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.orContainer}>
-              <View style={[styles.divider, { backgroundColor: currentColors.border }]} />
-              <Text style={[styles.orText, { color: currentColors.textTertiary }]}>OR</Text>
-              <View style={[styles.divider, { backgroundColor: currentColors.border }]} />
+        <View style={styles.actionGrid}>
+          <TouchableOpacity
+            style={[styles.actionCard, styles.galleryCard]}
+            onPress={pickImage}
+            activeOpacity={0.85}
+            disabled={loading}
+          >
+            <View style={[styles.iconBubble, { backgroundColor: `${currentColors.primary}14` }]}>
+              <MaterialCommunityIcons name="image-album" size={22} color={currentColors.primary} />
             </View>
+            <Text style={styles.actionTitle}>Gallery</Text>
+            <Text style={styles.actionSubtitle}>Pick a clear photo</Text>
+          </TouchableOpacity>
 
+          <TouchableOpacity
+            style={[styles.actionCard, styles.cameraCard]}
+            onPress={takePicture}
+            activeOpacity={0.85}
+            disabled={loading}
+          >
+            <View style={[styles.iconBubble, { backgroundColor: `${currentColors.secondary}14` }]}>
+              <MaterialCommunityIcons name="camera" size={22} color={currentColors.secondary} />
+            </View>
+            <Text style={styles.actionTitle}>Take Picture</Text>
+            <Text style={styles.actionSubtitle}>Use your phone camera</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Preview */}
+        <View style={styles.previewFrame}>
+          {image ? (
+            <Image source={{ uri: image }} style={styles.previewImage} />
+          ) : (
+            <View style={styles.previewEmpty}>
+              <MaterialCommunityIcons name="image-search" size={32} color={currentColors.textSecondary} />
+              <Text style={styles.previewEmptyTitle}>No photo yet</Text>
+              <Text style={styles.previewEmptySubtitle}>Choose Gallery or Take Picture above</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Animal selector */}
+        <View style={{ marginBottom: Spacing.md }}>
+          <Text style={[styles.sectionTitle, { fontSize: FontSize.md, marginBottom: Spacing.sm }]}>
+            Predict disease for:
+          </Text>
+          <View style={styles.animalChoiceRow}>
             <TouchableOpacity
-              style={[styles.uploadArea, { backgroundColor: currentColors.surface, borderColor: currentColors.border }]}
-              onPress={pickImageFromGallery}
-              activeOpacity={0.7}
+              style={[
+                styles.animalChoiceButton,
+                animalChoice === "cat"
+                  ? { borderColor: currentColors.primary, backgroundColor: `${currentColors.primary}12` }
+                  : { borderColor: currentColors.border },
+              ]}
+              onPress={() => setAnimalChoice("cat")}
             >
-              <View style={[styles.iconCircle, { backgroundColor: `${currentColors.secondary}15` }]}>
-                <MaterialCommunityIcons
-                  name="image"
-                  size={48}
-                  color={currentColors.secondary}
-                />
-              </View>
-              <Text style={[styles.uploadTitle, { color: currentColors.text }]}>
-                Choose from Gallery
-              </Text>
-              <Text style={[styles.uploadDesc, { color: currentColors.textSecondary }]}>
-                Select an existing photo
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.tipsContainer}>
               <MaterialCommunityIcons
-                name="lightbulb-outline"
-                size={20}
-                color={currentColors.accent}
+                name="cat-hair" size={24}
+                color={animalChoice === "cat" ? currentColors.primary : currentColors.textSecondary}
+                style={{ marginRight: Spacing.sm }}
               />
-              <Text style={[styles.tipsText, { color: currentColors.textSecondary }]}>
-                For best results, use good lighting and capture a clear image of your pet&apos;s affected area
-              </Text>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.previewSection}>
-            <View style={[styles.imageContainer, { backgroundColor: currentColors.surface }]}>
-              <Image
-                source={{ uri: selectedImage }}
-                style={styles.previewImage}
-                resizeMode="cover"
+              <Text style={[styles.animalChoiceText,
+                animalChoice === "cat"
+                  ? { color: currentColors.primary, fontWeight: "bold" }
+                  : { color: currentColors.textSecondary }
+              ]}>Cat</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.animalChoiceButton,
+                animalChoice === "dog"
+                  ? { borderColor: currentColors.secondary, backgroundColor: `${currentColors.secondary}12` }
+                  : { borderColor: currentColors.border },
+              ]}
+              onPress={() => setAnimalChoice("dog")}
+            >
+              <MaterialCommunityIcons
+                name="dog" size={24}
+                color={animalChoice === "dog" ? currentColors.secondary : currentColors.textSecondary}
+                style={{ marginRight: Spacing.sm }}
               />
-              <TouchableOpacity
-                style={[styles.clearButton, { backgroundColor: currentColors.surface }]}
-                onPress={clearImage}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name="close-circle"
-                  size={32}
-                  color={currentColors.error}
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.controlsSection}>
-              <TouchableOpacity
-                style={[styles.petSelector, { backgroundColor: currentColors.surface, borderColor: currentColors.border }]}
-                onPress={() => setShowPetSelector(true)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name="paw"
-                  size={24}
-                  color={currentColors.primary}
-                />
-                <Text style={[styles.petSelectorText, { color: currentColors.text }]}>
-                  {selectedPet ? selectedPet.name : 'Select Pet (Optional)'}
-                </Text>
-                <MaterialCommunityIcons
-                  name="chevron-down"
-                  size={24}
-                  color={currentColors.textTertiary}
-                />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.scanButton,
-                  { backgroundColor: loading ? currentColors.textTertiary : currentColors.primary },
-                ]}
-                onPress={handleScan}
-                disabled={loading}
-                activeOpacity={0.8}
-              >
-                {loading ? (
-                  <Text style={styles.scanButtonText}>Saving...</Text>
-                ) : (
-                  <>
-                    <MaterialCommunityIcons
-                      name="magnify"
-                      size={24}
-                      color={currentColors.white}
-                    />
-                    <Text style={styles.scanButtonText}>Save Image</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
+              <Text style={[styles.animalChoiceText,
+                animalChoice === "dog"
+                  ? { color: currentColors.secondary, fontWeight: "bold" }
+                  : { color: currentColors.textSecondary }
+              ]}>Dog</Text>
+            </TouchableOpacity>
           </View>
-        )}
+        </View>
 
-        {scanHistory.length > 0 && (
-          <View style={styles.historySection}>
-            <Text style={[styles.sectionTitle, { color: currentColors.text }]}>
-              Recent Scans
-            </Text>
-            {scanHistory.map((scan) => (
-              <TouchableOpacity
-                key={scan.id}
-                style={[styles.historyCard, { backgroundColor: currentColors.surface }]}
-                activeOpacity={0.7}
-              >
-                <Image
-                  source={{ uri: scan.imageUri }}
-                  style={styles.historyImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.historyInfo}>
-                  <Text style={[styles.historyPetName, { color: currentColors.text }]}>
-                    {scan.petName || 'Unknown Pet'}
-                  </Text>
-                  <Text style={[styles.historyDate, { color: currentColors.textSecondary }]}>
-                    {formatDate(scan.scannedAt)}
-                  </Text>
-                  <View style={[styles.statusBadge, {
-                    backgroundColor: scan.status === 'completed' 
-                      ? `${currentColors.success}20` 
-                      : `${currentColors.warning}20`
-                  }]}>
-                    <Text style={[styles.statusText, {
-                      color: scan.status === 'completed' 
-                        ? currentColors.success 
-                        : currentColors.warning
-                    }]}>
-                      {scan.status === 'completed' ? 'Analyzed' : 'Pending'}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-
-      {showPetSelector && (
+        {/* Analyze button */}
         <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowPetSelector(false)}
+          style={[styles.analyzeButton, (!image || loading) ? { opacity: 0.6 } : null]}
+          onPress={analyzeImage}
+          activeOpacity={0.9}
+          disabled={!image || loading}
         >
-          <View style={[styles.modalContent, { backgroundColor: currentColors.surface }]}>
-            <Text style={[styles.modalTitle, { color: currentColors.text }]}>
-              Select Pet
-            </Text>
-            <TouchableOpacity
-              style={[styles.petOption, { borderColor: currentColors.border }]}
-              onPress={() => handleSelectPet(null)}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons
-                name="paw-off"
-                size={24}
-                color={currentColors.textTertiary}
-              />
-              <Text style={[styles.petOptionText, { color: currentColors.text }]}>
-                No specific pet
-              </Text>
-            </TouchableOpacity>
-            {pets.map((pet) => (
-              <TouchableOpacity
-                key={pet.id}
-                style={[styles.petOption, { borderColor: currentColors.border }]}
-                onPress={() => handleSelectPet(pet)}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons
-                  name="paw"
-                  size={24}
-                  color={currentColors.primary}
-                />
-                <Text style={[styles.petOptionText, { color: currentColors.text }]}>
-                  {pet.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity
-              style={[styles.cancelButton, { borderColor: currentColors.border }]}
-              onPress={() => setShowPetSelector(false)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.cancelButtonText, { color: currentColors.error }]}>
-                Cancel
-              </Text>
-            </TouchableOpacity>
-          </View>
+          {loading ? (
+            <ActivityIndicator size="small" color={currentColors.white} />
+          ) : (
+            <MaterialCommunityIcons name="robot" size={18} color={currentColors.white} style={{ marginRight: Spacing.sm }} />
+          )}
+          <Text style={styles.analyzeButtonText}>{loading ? "Analyzing..." : "Analyze Image"}</Text>
         </TouchableOpacity>
+      </View>
+
+      {/* ── REJECTION CARD (random image detected) ── */}
+      {rejected && (
+        <View
+          style={styles.rejectionCard}
+          onLayout={(e) => {
+            if (!shouldScrollToResults) return;
+            scrollRef.current?.scrollTo({ y: e.nativeEvent.layout.y - Spacing.md, animated: true });
+            setShouldScrollToResults(false);
+          }}
+        >
+          <View style={styles.rejectionIconRow}>
+            <MaterialCommunityIcons name="alert-circle" size={32} color="#E53E3E" />
+            <Text style={styles.rejectionTitle}>Image Not Recognized</Text>
+          </View>
+          <Text style={styles.rejectionReason}>{rejected}</Text>
+          <Text style={styles.rejectionTips}>Tips for a better photo:</Text>
+          {[
+            "Make sure the affected skin area fills most of the frame",
+            "Use good lighting — natural light works best",
+            "Hold the camera steady and close to the skin",
+            "Do not upload random objects, rooms, or unrelated images",
+          ].map((tip, i) => (
+            <Text key={i} style={styles.rejectionTip}>• {tip}</Text>
+          ))}
+        </View>
       )}
 
-      <View style={styles.bottomNavContainer}>
-        <BottomNavigationBar />
-      </View>
-    </SafeAreaView>
+      {/* ── RESULT CARD ── */}
+      {result && (
+        <>
+          <View
+            style={styles.resultCard}
+            onLayout={(e) => {
+              if (!shouldScrollToResults) return;
+              scrollRef.current?.scrollTo({ y: Math.max(0, e.nativeEvent.layout.y - Spacing.md), animated: true });
+              setShouldScrollToResults(false);
+            }}
+          >
+            <Text style={styles.resultTitle}>Most possible disease</Text>
+
+            {isHealthy ? (
+              <View style={{ backgroundColor: `${currentColors.primary}20`, padding: Spacing.md, borderRadius: BorderRadius.md, alignItems: "center", marginVertical: Spacing.md }}>
+                <MaterialCommunityIcons name="check-decagram" size={64} color={currentColors.primary} />
+                <Text style={{ fontSize: FontSize.lg, fontWeight: "bold", color: currentColors.primary, marginTop: Spacing.sm }}>Great News!</Text>
+                <Text style={{ color: currentColors.text, textAlign: "center", marginTop: Spacing.xs, fontSize: FontSize.md }}>
+                  Your pet appears to be Healthy (Confidence: {result.top1.confidence.toFixed(2)}%)
+                </Text>
+              </View>
+            ) : (
+              <View style={{ width: "100%" }}>
+                {/* Top 1 */}
+                <View style={styles.predictionBlock}>
+                  <View style={styles.predictionRankRow}>
+                    <View style={[styles.rankBadge, { backgroundColor: `${currentColors.primary}15` }]}>
+                      <Text style={[styles.rankBadgeText, { color: currentColors.primary }]}>🥇</Text>
+                    </View>
+                    <View style={styles.predictionBody}>
+                      <Text style={styles.diseaseText}>{result.top1.disease}</Text>
+                      <Text style={styles.confidenceText}>{result.top1.confidence.toFixed(2)}%</Text>
+                    </View>
+                  </View>
+                  <View style={styles.confidenceTrack}>
+                    <View style={[styles.confidenceFill, { width: `${Math.max(0, Math.min(100, result.top1.confidence))}%`, backgroundColor: currentColors.primary }]} />
+                  </View>
+                </View>
+
+                {/* Top 2 */}
+                {result.top2.disease !== "Uncertain" && !isEyeOrDental && (
+                  <View style={styles.predictionBlock}>
+                    <Text style={styles.secondLabel}>Also have signs of</Text>
+                    <View style={styles.predictionRankRow}>
+                      <View style={[styles.rankBadge, { backgroundColor: `${currentColors.secondary}15` }]}>
+                        <Text style={[styles.rankBadgeText, { color: currentColors.secondary }]}>🥈</Text>
+                      </View>
+                      <View style={styles.predictionBody}>
+                        <Text style={styles.diseaseText}>{result.top2.disease}</Text>
+                        <Text style={styles.confidenceText}>{result.top2.confidence.toFixed(2)}%</Text>
+                      </View>
+                    </View>
+                    <View style={styles.confidenceTrack}>
+                      <View style={[styles.confidenceFill, { width: `${Math.max(0, Math.min(100, result.top2.confidence))}%`, backgroundColor: currentColors.secondary }]} />
+                    </View>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Treatment toggle */}
+          {!isHealthy && (
+            <TouchableOpacity
+              style={[styles.analyzeButton, { backgroundColor: currentColors.secondary, marginTop: Spacing.sm, marginBottom: Spacing.md }]}
+              onPress={() => setShowTreatment(!showTreatment)}
+              activeOpacity={0.9}
+            >
+              <MaterialCommunityIcons
+                name={showTreatment ? "chevron-up" : "medical-bag"}
+                size={18} color={currentColors.white}
+                style={{ marginRight: Spacing.sm }}
+              />
+              <Text style={styles.analyzeButtonText}>
+                {showTreatment ? "Hide Treatment Recommendations" : "Show Treatment Recommendations"}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Treatment card */}
+          {!isHealthy && showTreatment && (
+            <View style={styles.treatmentCard}>
+              <Text style={styles.treatmentTitle}>Treatment</Text>
+
+              {top1TreatmentKey ? (
+                <View style={styles.treatmentGroup}>
+                  <Text style={styles.treatmentSubtitle}>For: {result.top1.disease}</Text>
+                  {top1Medicines.length ? (
+                    top1Medicines.slice(0, 3).map((m, i) => (
+                      <View key={i} style={styles.medicineRow}>
+                        <Text style={styles.medicineName}>
+                          • Give {m.medicine}{" "}
+                          {m.attributes?.Route_of_Administration ? `via ${m.attributes.Route_of_Administration.toLowerCase()}` : ""}{" "}
+                          {m.attributes?.Dosage_Frequency ? m.attributes.Dosage_Frequency.toLowerCase() : ""}{" "}
+                          {m.attributes?.Treatment_Duration_Days ? `for ${m.attributes.Treatment_Duration_Days.toLowerCase()}` : ""}.
+                        </Text>
+                        {m.attributes?.Side_Effects ? (
+                          <Text style={[styles.medicineMeta, { color: currentColors.secondary, fontStyle: "italic", marginTop: 4 }]}>
+                            ⚠️ Watch for: {m.attributes.Side_Effects}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.fallbackText}>No specific treatment data found. Please consult a veterinarian.</Text>
+                  )}
+                </View>
+              ) : null}
+
+              {top2TreatmentKey && result?.top2.disease !== result?.top1.disease ? (
+                <View style={styles.treatmentGroup}>
+                  <Text style={styles.treatmentSubtitle}>Also consider for: {result.top2.disease}</Text>
+                  {top2Medicines.length ? (
+                    top2Medicines.slice(0, 3).map((m, i) => (
+                      <View key={i} style={styles.medicineRow}>
+                        <Text style={styles.medicineName}>
+                          • Give {m.medicine}{" "}
+                          {m.attributes?.Route_of_Administration ? `via ${m.attributes.Route_of_Administration.toLowerCase()}` : ""}{" "}
+                          {m.attributes?.Dosage_Frequency ? m.attributes.Dosage_Frequency.toLowerCase() : ""}{" "}
+                          {m.attributes?.Treatment_Duration_Days ? `for ${m.attributes.Treatment_Duration_Days.toLowerCase()}` : ""}.
+                        </Text>
+                        {m.attributes?.Side_Effects ? (
+                          <Text style={[styles.medicineMeta, { color: currentColors.secondary, fontStyle: "italic", marginTop: 4 }]}>
+                            ⚠️ Watch for: {m.attributes.Side_Effects}
+                          </Text>
+                        ) : null}
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.fallbackText}>No specific treatment data found. Please consult a veterinarian.</Text>
+                  )}
+                </View>
+              ) : null}
+            </View>
+          )}
+        </>
+      )}
+    </ScrollView>
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.lg,
-    paddingBottom: 120,
-  },
-  header: {
-    marginBottom: Spacing.lg,
-  },
-  title: {
-    fontSize: FontSize.xxxl,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing.xs,
-  },
-  subtitle: {
-    fontSize: FontSize.md,
-  },
-  uploadSection: {
-    gap: Spacing.md,
-  },
-  uploadArea: {
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    ...Shadow.sm,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  uploadTitle: {
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semibold,
-    marginBottom: Spacing.xs,
-  },
-  uploadDesc: {
-    fontSize: FontSize.sm,
-    textAlign: 'center',
-  },
-  orContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    marginVertical: Spacing.sm,
-  },
-  divider: {
-    flex: 1,
-    height: 1,
-  },
-  orText: {
-    fontSize: FontSize.sm,
-    fontWeight: FontWeight.medium,
-  },
-  tipsContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginTop: Spacing.md,
-    gap: Spacing.sm,
-  },
-  tipsText: {
-    flex: 1,
-    fontSize: FontSize.sm,
-    lineHeight: 20,
-  },
-  previewSection: {
-    gap: Spacing.md,
-  },
-  imageContainer: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    ...Shadow.md,
-  },
-  previewImage: {
-    width: '100%',
-    height: width - Spacing.md * 4,
-    borderRadius: BorderRadius.lg,
-  },
-  clearButton: {
-    position: 'absolute',
-    top: Spacing.sm,
-    right: Spacing.sm,
-    borderRadius: BorderRadius.full,
-    ...Shadow.sm,
-  },
-  controlsSection: {
-    gap: Spacing.md,
-  },
-  petSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    gap: Spacing.sm,
-    ...Shadow.sm,
-  },
-  petSelectorText: {
-    flex: 1,
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-  },
-  scanButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-    ...Shadow.md,
-  },
-  scanButtonText: {
-    color: currentColors.white,
-    fontSize: FontSize.lg,
-    fontWeight: FontWeight.semibold,
-  },
-  historySection: {
-    marginTop: Spacing.xl,
-    gap: Spacing.md,
-  },
-  sectionTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing.xs,
-  },
-  historyCard: {
-    flexDirection: 'row',
-    borderRadius: BorderRadius.md,
-    overflow: 'hidden',
-    ...Shadow.sm,
-  },
-  historyImage: {
-    width: 80,
-    height: 80,
-  },
-  historyInfo: {
-    flex: 1,
-    padding: Spacing.md,
-    justifyContent: 'center',
-    gap: Spacing.xs,
-  },
-  historyPetName: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-  },
-  historyDate: {
-    fontSize: FontSize.sm,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.sm,
-  },
-  statusText: {
-    fontSize: FontSize.xs,
-    fontWeight: FontWeight.medium,
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: currentColors.overlay,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 400,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    ...Shadow.xl,
-  },
-  modalTitle: {
-    fontSize: FontSize.xl,
-    fontWeight: FontWeight.bold,
-    marginBottom: Spacing.lg,
-    textAlign: 'center',
-  },
-  petOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.sm,
-    gap: Spacing.md,
-  },
-  petOptionText: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.medium,
-  },
-  cancelButton: {
-    marginTop: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: FontSize.md,
-    fontWeight: FontWeight.semibold,
-  },
-  bottomNavContainer: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    pointerEvents: 'box-none',
-  },
-});
+export default Imagechecker;
 
-export default ImageChecker;
+const styles = StyleSheet.create({
+  container:        { flex: 1, backgroundColor: currentColors.background },
+  contentContainer: { padding: Spacing.lg, paddingBottom: Spacing.xxl, position: "relative" },
+  bgCircle1: { position: "absolute", top: -120, left: -60,  width: 240, height: 240, borderRadius: 9999, backgroundColor: `${currentColors.primary}20` },
+  bgCircle2: { position: "absolute", top: 40,  right: -80, width: 280, height: 280, borderRadius: 9999, backgroundColor: `${currentColors.secondary}18` },
+  hero:           { backgroundColor: currentColors.primary, borderRadius: BorderRadius.xl, padding: Spacing.lg, ...Shadow.lg },
+  heroRow:        { flexDirection: "row", alignItems: "center" },
+  heroTitle:      { marginLeft: Spacing.sm, fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: currentColors.white },
+  heroSubtitle:   { marginTop: Spacing.sm, fontSize: FontSize.md, color: "rgba(255,255,255,0.92)", lineHeight: 22 },
+  heroDisclaimer: { marginTop: Spacing.xs, fontSize: FontSize.xs, color: "rgba(255,255,255,0.85)", lineHeight: 18 },
+  section:       { marginTop: Spacing.lg },
+  sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.sm },
+  sectionTitle:  { fontSize: FontSize.lg, fontWeight: FontWeight.semibold, color: currentColors.text },
+  statusPill:     { paddingHorizontal: Spacing.sm, paddingVertical: 6, borderRadius: BorderRadius.full },
+  statusPillText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  actionGrid: { flexDirection: "row", justifyContent: "space-between", marginBottom: Spacing.md },
+  actionCard: { flex: 1, backgroundColor: currentColors.surface, borderRadius: BorderRadius.xl, padding: Spacing.md, borderWidth: 1, borderColor: currentColors.border, ...Shadow.sm, alignItems: "center", marginHorizontal: 4 },
+  iconBubble: { width: 46, height: 46, borderRadius: BorderRadius.full, alignItems: "center", justifyContent: "center", marginBottom: Spacing.sm },
+  galleryCard:    { backgroundColor: `${currentColors.primary}08` },
+  cameraCard:     { backgroundColor: currentColors.surface, elevation: 0, shadowOpacity: 0 },
+  actionTitle:    { marginTop: Spacing.sm, fontSize: FontSize.md, fontWeight: FontWeight.bold, color: currentColors.text, textAlign: "center" },
+  actionSubtitle: { marginTop: 2, fontSize: FontSize.xs, color: currentColors.textSecondary, textAlign: "center" },
+  previewFrame:         { backgroundColor: currentColors.surface, borderRadius: BorderRadius.xl, padding: Spacing.md, borderWidth: 1, borderStyle: "dashed", borderColor: currentColors.border, ...Shadow.sm, marginBottom: Spacing.lg, overflow: "hidden" },
+  previewImage:         { width: "100%", aspectRatio: 1, borderRadius: BorderRadius.lg },
+  previewEmpty:         { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: Spacing.lg },
+  previewEmptyTitle:    { marginTop: Spacing.sm, fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: currentColors.text },
+  previewEmptySubtitle: { marginTop: 4, fontSize: FontSize.sm, color: currentColors.textSecondary, textAlign: "center", lineHeight: 20 },
+  analyzeButton:     { flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: currentColors.primary, borderRadius: BorderRadius.full, paddingVertical: Spacing.md, paddingHorizontal: Spacing.xl, ...Shadow.md },
+  analyzeButtonText: { color: currentColors.white, fontSize: FontSize.lg, fontWeight: FontWeight.bold },
+  animalChoiceRow:    { flexDirection: "row", marginBottom: Spacing.md },
+  animalChoiceButton: { flex: 1, marginHorizontal: 4, borderRadius: BorderRadius.lg, borderWidth: 1, paddingVertical: Spacing.sm, flexDirection: "row", alignItems: "center", justifyContent: "center", backgroundColor: currentColors.surfaceVariant },
+  animalChoiceText:   { fontSize: FontSize.md, fontWeight: FontWeight.semibold },
+  rejectionCard:    { marginTop: Spacing.lg, backgroundColor: currentColors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, ...Shadow.lg, borderLeftWidth: 4, borderLeftColor: "#E53E3E" },
+  rejectionIconRow: { flexDirection: "row", alignItems: "center", marginBottom: Spacing.sm },
+  rejectionTitle:   { marginLeft: Spacing.sm, fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: "#E53E3E" },
+  rejectionReason:  { fontSize: FontSize.md, color: currentColors.text, lineHeight: 22, marginBottom: Spacing.md },
+  rejectionTips:    { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: currentColors.textSecondary, marginBottom: Spacing.xs },
+  rejectionTip:     { fontSize: FontSize.sm, color: currentColors.textSecondary, lineHeight: 22, marginLeft: Spacing.sm },
+  resultCard:   { marginTop: Spacing.lg, backgroundColor: currentColors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, ...Shadow.lg, borderLeftWidth: 4, borderLeftColor: currentColors.primary },
+  resultTitle:  { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: currentColors.text, marginBottom: Spacing.md },
+  secondLabel:  { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: currentColors.textSecondary, marginBottom: Spacing.sm },
+  predictionBlock:   { backgroundColor: currentColors.surfaceVariant, borderRadius: BorderRadius.lg, padding: Spacing.md, marginBottom: Spacing.sm },
+  predictionRankRow: { flexDirection: "row", alignItems: "center" },
+  predictionBody:    { flex: 1, marginLeft: Spacing.md },
+  rankBadge:         { width: 44, height: 44, borderRadius: BorderRadius.full, alignItems: "center", justifyContent: "center" },
+  rankBadgeText:     { fontSize: 18, fontWeight: FontWeight.bold },
+  diseaseText:       { fontSize: FontSize.md, fontWeight: FontWeight.semibold, color: currentColors.text },
+  confidenceText:    { marginTop: 4, fontSize: FontSize.sm, color: currentColors.textSecondary },
+  confidenceTrack:   { marginTop: Spacing.sm, height: 10, backgroundColor: currentColors.background, borderRadius: 9999, overflow: "hidden" },
+  confidenceFill:    { height: 10, borderRadius: 9999 },
+  treatmentCard:     { marginTop: Spacing.md, backgroundColor: currentColors.surface, borderRadius: BorderRadius.xl, padding: Spacing.lg, ...Shadow.lg, borderLeftWidth: 4, borderLeftColor: currentColors.secondary },
+  treatmentTitle:    { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: currentColors.text, marginBottom: Spacing.sm },
+  treatmentGroup:    { marginTop: Spacing.md, backgroundColor: currentColors.surfaceVariant, borderRadius: BorderRadius.lg, padding: Spacing.md, borderWidth: 1, borderColor: currentColors.border },
+  treatmentSubtitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: currentColors.textSecondary, marginBottom: Spacing.xs },
+  medicineRow:       { marginTop: Spacing.sm, marginBottom: Spacing.sm },
+  medicineName:      { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: currentColors.text },
+  medicineMeta:      { marginTop: 4, fontSize: FontSize.xs, color: currentColors.textSecondary, lineHeight: 18 },
+  fallbackText:      { fontSize: FontSize.sm, color: currentColors.textSecondary, marginTop: Spacing.sm, lineHeight: 20 },
+});
