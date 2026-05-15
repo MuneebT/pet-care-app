@@ -21,14 +21,12 @@ import {
   View
 } from 'react-native';
 import { ActivityIndicator, Switch, TextInput } from 'react-native-paper';
-import { BorderRadius, Spacing, Shadow } from '@/constants/theme';
-
-const PRIMARY_COLOR = '#10B981';
+import { BorderRadius, Spacing, Shadow, FontSize, FontWeight, currentColors } from '@/constants/theme';
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: currentColors.background,
   },
   scrollContent: {
     padding: Spacing.lg,
@@ -56,11 +54,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1E293B',
+    color: currentColors.text,
   },
   subtitle: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: FontSize.sm,
+    color: currentColors.textSecondary,
     marginTop: 2,
   },
   progressCard: {
@@ -79,26 +77,26 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
+    color: currentColors.text,
   },
   progressPercent: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: PRIMARY_COLOR,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: currentColors.primary,
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: currentColors.border,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: currentColors.primary,
     borderRadius: BorderRadius.full,
   },
   profileCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: currentColors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -113,7 +111,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: currentColors.surfaceVariant,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -124,15 +122,15 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: currentColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 3,
     borderColor: '#FFFFFF',
   },
   profileHint: {
-    fontSize: 14,
-    color: '#64748B',
+    fontSize: FontSize.sm,
+    color: currentColors.textSecondary,
     textAlign: 'center',
   },
   card: {
@@ -146,9 +144,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.md,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: currentColors.surfaceVariant,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: currentColors.border,
   },
   cardIconContainer: {
     width: 36,
@@ -160,9 +158,9 @@ const styles = StyleSheet.create({
     marginRight: Spacing.sm,
   },
   cardTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1E293B',
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: currentColors.text,
   },
   cardContent: {
     padding: Spacing.md,
@@ -183,7 +181,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: currentColors.border,
   },
   dayRowLast: {
     borderBottomWidth: 0,
@@ -196,7 +194,7 @@ const styles = StyleSheet.create({
   dayName: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#1E293B',
+    color: currentColors.text,
     marginLeft: Spacing.sm,
   },
   dayTime: {
@@ -206,12 +204,12 @@ const styles = StyleSheet.create({
   },
   dayUnavailable: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: currentColors.textTertiary,
     marginLeft: Spacing.sm,
     fontStyle: 'italic',
   },
   timeButton: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: currentColors.surfaceVariant,
     paddingVertical: Spacing.xs,
     paddingHorizontal: Spacing.sm,
     borderRadius: BorderRadius.sm,
@@ -222,9 +220,9 @@ const styles = StyleSheet.create({
     color: '#64748B',
   },
   uploadCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: currentColors.surface,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
     ...Shadow.md,
     overflow: 'hidden',
   },
@@ -248,13 +246,13 @@ const styles = StyleSheet.create({
   },
   uploadText: {
     fontSize: 15,
-    color: '#64748B',
+    color: currentColors.textSecondary,
     textAlign: 'center',
     marginBottom: 4,
   },
   uploadHint: {
     fontSize: 13,
-    color: '#94A3B8',
+    color: currentColors.textTertiary,
   },
   documentPreview: {
     flexDirection: 'row',
@@ -271,7 +269,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: BorderRadius.sm,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: currentColors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm,
@@ -280,13 +278,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   documentName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1E293B',
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
+    color: currentColors.text,
   },
   documentSize: {
-    fontSize: 12,
-    color: '#64748B',
+    fontSize: FontSize.xs,
+    color: currentColors.textSecondary,
   },
   submitButton: {
     marginTop: Spacing.md,
@@ -300,12 +298,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
-    backgroundColor: PRIMARY_COLOR,
+    backgroundColor: currentColors.primary,
   },
   submitButtonText: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: currentColors.white,
   },
   bottomSpacer: {
     height: Spacing.xxl,
@@ -470,7 +468,7 @@ const Credentials = () => {
           >
             <View style={styles.header}>
               <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <MaterialCommunityIcons name="arrow-left" size={24} color="#1E293B" />
+                <MaterialCommunityIcons name="arrow-left" size={24} color={currentColors.text} />
               </TouchableOpacity>
               <View style={styles.headerTitle}>
                 <Text style={styles.title}>Complete Your Profile</Text>
@@ -494,11 +492,11 @@ const Credentials = () => {
                   {image ? (
                     <Image source={{ uri: image }} style={{ width: 120, height: 120, borderRadius: 60 }} />
                   ) : (
-                    <MaterialCommunityIcons name="account" size={60} color="#94A3B8" />
+                    <MaterialCommunityIcons name="account" size={60} color={currentColors.textTertiary} />
                   )}
                 </View>
                 <View style={styles.cameraButton}>
-                  <MaterialCommunityIcons name="camera" size={20} color="#FFFFFF" />
+                  <MaterialCommunityIcons name="camera" size={20} color={currentColors.white} />
                 </View>
               </TouchableOpacity>
               <Text style={styles.profileHint}>Tap to add photo</Text>
@@ -507,7 +505,7 @@ const Credentials = () => {
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={[styles.cardIconContainer, { backgroundColor: '#DCFCE7' }]}>
-                  <MaterialCommunityIcons name="account" size={20} color={PRIMARY_COLOR} />
+                  <MaterialCommunityIcons name="account" size={20} color={currentColors.primary} />
                 </View>
                 <Text style={styles.cardTitle}>Personal Information</Text>
               </View>
@@ -518,9 +516,9 @@ const Credentials = () => {
                     value={name}
                     onChangeText={setName}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                   />
                 </View>
                 <View style={styles.inputRow}>
@@ -529,9 +527,9 @@ const Credentials = () => {
                     value={specialization}
                     onChangeText={setSpecialization}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                     placeholder="e.g., Small Animal Medicine"
                   />
                 </View>
@@ -541,10 +539,10 @@ const Credentials = () => {
                     value={experience}
                     onChangeText={setExperience}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
                     keyboardType="numeric"
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    style={{ backgroundColor: currentColors.surface }}
                   />
                 </View>
               </View>
@@ -553,7 +551,7 @@ const Credentials = () => {
             <View style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={[styles.cardIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                  <MaterialCommunityIcons name="hospital-building" size={20} color="#EF4444" />
+                  <MaterialCommunityIcons name="hospital-building" size={20} color={currentColors.error} />
                 </View>
                 <Text style={styles.cardTitle}>Clinic Details</Text>
               </View>
@@ -564,9 +562,9 @@ const Credentials = () => {
                     value={clinicName}
                     onChangeText={setClinicName}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                   />
                 </View>
                 <View style={styles.inputRow}>
@@ -575,9 +573,9 @@ const Credentials = () => {
                     value={clinicAddress}
                     onChangeText={setClinicAddress}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                     multiline
                     numberOfLines={2}
                   />
@@ -588,7 +586,7 @@ const Credentials = () => {
             <View style={styles.scheduleCard}>
               <View style={styles.cardHeader}>
                 <View style={[styles.cardIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                  <MaterialCommunityIcons name="calendar-clock" size={20} color="#F59E0B" />
+                  <MaterialCommunityIcons name="calendar-clock" size={20} color={currentColors.warning} />
                 </View>
                 <Text style={styles.cardTitle}>Weekly Schedule</Text>
               </View>
@@ -606,7 +604,7 @@ const Credentials = () => {
                       ...prev,
                       [day]: { ...prev[day], enabled }
                     }))}
-                    color={PRIMARY_COLOR}
+                    color={currentColors.primary}
                     style={{ transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }] }}
                   />
                   <View style={styles.dayInfo}>
@@ -649,9 +647,9 @@ const Credentials = () => {
                     value={degree}
                     onChangeText={setDegree}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                     placeholder="e.g., DVM, VMD"
                   />
                 </View>
@@ -661,9 +659,9 @@ const Credentials = () => {
                     value={licenseNo}
                     onChangeText={setLicenseNo}
                     mode="outlined"
-                    outlineColor="#E2E8F0"
-                    activeOutlineColor={PRIMARY_COLOR}
-                    style={{ backgroundColor: '#FFFFFF' }}
+                    outlineColor={currentColors.border}
+                    activeOutlineColor={currentColors.primary}
+                    style={{ backgroundColor: currentColors.surface }}
                   />
                 </View>
               </View>
@@ -679,7 +677,7 @@ const Credentials = () => {
               <TouchableOpacity onPress={pickDocument} activeOpacity={0.7}>
                 <View style={styles.uploadArea}>
                   <View style={styles.uploadIcon}>
-                    <MaterialCommunityIcons name="cloud-upload" size={32} color="#64748B" />
+                    <MaterialCommunityIcons name="cloud-upload" size={32} color={currentColors.textSecondary} />
                   </View>
                   <Text style={styles.uploadText}>Tap to upload your license document</Text>
                   <Text style={styles.uploadHint}>PDF, JPG, PNG up to 10MB</Text>
@@ -688,7 +686,7 @@ const Credentials = () => {
               {document && (
                 <View style={styles.documentPreview}>
                   <View style={styles.documentIcon}>
-                    <MaterialCommunityIcons name="file-pdf-box" size={24} color="#FFFFFF" />
+                    <MaterialCommunityIcons name="file-pdf-box" size={24} color={currentColors.white} />
                   </View>
                   <View style={styles.documentInfo}>
                     <Text style={styles.documentName} numberOfLines={1}>{document.name}</Text>
@@ -699,7 +697,7 @@ const Credentials = () => {
                     )}
                   </View>
                   <TouchableOpacity onPress={() => setDocument(null)}>
-                    <MaterialCommunityIcons name="close-circle" size={24} color="#94A3B8" />
+                    <MaterialCommunityIcons name="close-circle" size={24} color={currentColors.textTertiary} />
                   </TouchableOpacity>
                 </View>
               )}
@@ -713,10 +711,10 @@ const Credentials = () => {
             >
               <View style={styles.submitButtonContent}>
                 {isLoading ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={currentColors.white} size="small" />
                 ) : (
                   <>
-                    <MaterialCommunityIcons name="check-circle" size={22} color="#FFFFFF" />
+                    <MaterialCommunityIcons name="check-circle" size={22} color={currentColors.white} />
                     <Text style={styles.submitButtonText}>Submit for Review</Text>
                   </>
                 )}
