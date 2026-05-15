@@ -1,4 +1,5 @@
 import { auth, db } from '@/services/firebase';
+import { uploadToCloudinary } from '@/services/cloudinary';
 import { router, useLocalSearchParams } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { addDoc, collection, CollectionReference, doc, DocumentReference, updateDoc } from 'firebase/firestore';
@@ -73,6 +74,7 @@ const EditPet = () => {
   const [petGender, setPetGender] = useState<string>(gender);
   const [petAge, setPetAge] = useState<string>(age);
   const [petImage, setPetImage] = useState<string>(image);
+  const [imageUploading, setImageUploading] = useState(false);
   const [showTypeDropdown, setShowTypeDropdown] = useState<boolean>(false);
   const [showBreedDropdown, setShowBreedDropdown] = useState<boolean>(false);
 
@@ -122,16 +124,17 @@ const EditPet = () => {
     }
   }, [currentUser, petName, petType, petBreed, petGender, petAge, petId, petImage]);
 
-  const handleImagePick = () => {
-    Alert.alert(
-      'Add Pet Photo',
-      'Choose how you want to add a photo',
-      [
-        { text: 'Camera', onPress: () => console.log('Camera pressed') },
-        { text: 'Photo Library', onPress: () => console.log('Gallery pressed') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleImagePick = async (uri: string) => {
+    setImageUploading(true);
+    try {
+      const cloudinaryUrl = await uploadToCloudinary(uri);
+      setPetImage(cloudinaryUrl);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   if (isLoading || isSubmitting) {
@@ -200,6 +203,7 @@ const EditPet = () => {
               <PetImagePicker
                 imageUri={petImage}
                 onImageSelected={handleImagePick}
+                uploading={imageUploading}
               />
 
               <View style={styles.formContainer}>
@@ -519,9 +523,11 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
+    pointerEvents: 'box-none',
   },
 });
 

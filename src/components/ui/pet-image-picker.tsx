@@ -1,21 +1,75 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BorderRadius, Spacing, Shadow } from '@/constants/theme';
+import * as ImagePicker from 'expo-image-picker';
 
 interface PetImagePickerProps {
   imageUri?: string;
   onImageSelected: (uri: string) => void;
   size?: number;
+  uploading?: boolean;
 }
 
 export const PetImagePicker: React.FC<PetImagePickerProps> = ({
   imageUri,
   onImageSelected,
   size = 140,
+  uploading = false,
 }) => {
+  const requestPermission = async (type: 'camera' | 'gallery') => {
+    if (type === 'camera') {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera permission is required to take a photo');
+        return false;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Gallery permission is required to pick a photo');
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const pickFromCamera = async () => {
+    const hasPermission = await requestPermission('camera');
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      onImageSelected(result.assets[0].uri);
+    }
+  };
+
+  const pickFromGallery = async () => {
+    const hasPermission = await requestPermission('gallery');
+    if (!hasPermission) return;
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      onImageSelected(result.assets[0].uri);
+    }
+  };
+
   const handlePress = () => {
-    onImageSelected('placeholder');
+    Alert.alert('Add Pet Photo', 'Choose how you want to add a photo', [
+      { text: 'Camera', onPress: pickFromCamera },
+      { text: 'Photo Library', onPress: pickFromGallery },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
   };
 
   return (
@@ -27,8 +81,18 @@ export const PetImagePicker: React.FC<PetImagePickerProps> = ({
         ]}
         onPress={handlePress}
         activeOpacity={0.8}
+        disabled={uploading}
       >
-        {imageUri ? (
+        {uploading ? (
+          <View
+            style={[
+              styles.placeholder,
+              { width: size, height: size, borderRadius: size / 2 },
+            ]}
+          >
+            <ActivityIndicator size="large" color="#6366F1" />
+          </View>
+        ) : imageUri ? (
           <Image
             source={{ uri: imageUri }}
             style={[
@@ -59,7 +123,7 @@ export const PetImagePicker: React.FC<PetImagePickerProps> = ({
           />
         </View>
       </TouchableOpacity>
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.7} disabled={uploading}>
         <View style={styles.button}>
           <MaterialCommunityIcons name="image-plus" size={18} color="#6366F1" />
         </View>
