@@ -5,7 +5,7 @@ import { Link } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
+  
     FlatList,
     Image,
     SafeAreaView,
@@ -14,7 +14,9 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { Card, useTheme } from 'react-native-paper';
+import { BorderRadius, Spacing, Shadow, FontSize, FontWeight, currentColors } from '@/constants/theme';
+import Skeleton from '@/components/ui/skeleton';
+import VetBottomNavigationBar from './bootomna';
 
 type Patient = {
   id: string;
@@ -32,12 +34,11 @@ type PetDocumentData = {
   type?: string;
   userId?: string;
   lastVisit?: string;
-  photoURL?: string;
+  image?: string;
   [key: string]: any; // For any other fields
 };
 
 const MyPatients = () => {
-  const theme = useTheme();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -62,7 +63,7 @@ const MyPatients = () => {
         type: data?.type,
         userId: data?.userId,
         lastVisit: data?.lastVisit,
-        photoURL: data?.photoURL,
+        image: data?.image,
         ...data
       };
     } catch (error) {
@@ -94,7 +95,15 @@ const MyPatients = () => {
         const querySnapshot = await getDocs(q);
         console.log(`Found ${querySnapshot.size} appointments`);
         
-        // Process each appointment to get unique pet IDs with owner info
+        const toDate = (val: any): Date | null => {
+          if (!val) return null;
+          if (typeof val.toDate === 'function') return val.toDate();
+          if (val instanceof Date) return val;
+          if (typeof val === 'string' || typeof val === 'number') return new Date(val);
+          if (val.seconds) return new Date(val.seconds * 1000);
+          return null;
+        };
+
         const petAppointments = new Map();
         querySnapshot.forEach(doc => {
           const data = doc.data();
@@ -103,17 +112,8 @@ const MyPatients = () => {
             petAppointments.set(petId, {
               ...data,
               appointmentId: doc.id,
-              date: data.date?.toDate?.() || data.date,
-              // Assuming the appointment has the owner's ID
+              date: toDate(data.date),
               ownerId: data.userId
-            });
-            
-            console.log(`Appointment ${doc.id}:`, {
-              petId: petId,
-              ownerId: data.userId,
-              vetId: data.vetId,
-              status: data.status,
-              date: data.date?.toDate?.() || data.date
             });
           }
         });
@@ -166,11 +166,13 @@ const MyPatients = () => {
                 name: ownerName,
                 petName: petData.name || 'Unnamed Pet',
                 petType: petData.type || 'Pet',
-                lastVisit: petData.lastVisit || 'N/A',
-                nextAppointment: appointment?.date 
-                  ? new Date(appointment.date.seconds * 1000).toLocaleDateString() 
-                  : 'No upcoming',
-                image: petData.photoURL || null
+                lastVisit: appointment?.date
+                  ? appointment.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                  : 'N/A',
+                nextAppointment: appointment?.date
+                  ? appointment.date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+                  : 'N/A',
+                image: petData.image || null
               };
             } catch (error) {
               console.error(`Error processing pet ${petId}:`, error);
@@ -195,82 +197,94 @@ const MyPatients = () => {
   }, [currentUser]);
 
   const renderPatientItem = ({ item }: { item: Patient }) => (
-    <Card style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-      <Link 
-        href={{
-          pathname: '/vets/[id]',
-          params: { id: item.id }
-        }}
-        asChild
-      >
-        <TouchableOpacity style={styles.patientItem} accessibilityLabel={`View ${item.petName}'s profile`}>
+    <Link
+      href={{
+        pathname: '/vets/[id]',
+        params: { id: item.id }
+      }}
+      asChild
+    >
+      <TouchableOpacity style={styles.card} accessibilityLabel={`View ${item.petName}'s profile`}>
         {item.image ? (
           <Image source={{ uri: item.image }} style={styles.petImage} />
         ) : (
-          <View style={[styles.petImage, { backgroundColor: theme.colors.primaryContainer }]}>
-            <MaterialCommunityIcons 
+          <View style={[styles.petImage, { backgroundColor: '#F1F5F9' }]}>
+            <MaterialCommunityIcons
               name={item.petType.toLowerCase() === 'dog' ? 'dog' : 'cat'}
-              size={40} 
-              color={theme.colors.onPrimaryContainer} 
+              size={40}
+              color={currentColors.textTertiary}
             />
           </View>
         )}
         <View style={styles.patientInfo}>
-          <Text style={[styles.petName, { color: theme.colors.onSurface }]}>{item.petName}</Text>
-          <Text style={[styles.ownerName, { color: theme.colors.onSurfaceVariant }]}>{item.name}</Text>
+          <Text style={[styles.petName, { color: currentColors.text }]}>{item.petName}</Text>
+          <Text style={[styles.ownerName, { color: currentColors.textSecondary }]}>{item.name}</Text>
           <View style={styles.detailsRow}>
-            <Text style={[styles.detailText, { color: theme.colors.onSurfaceVariant }]}>
+            <Text style={[styles.detailText, { color: currentColors.textSecondary }]}>
               {item.petType} • Last visit: {item.lastVisit}
             </Text>
           </View>
         </View>
-        <MaterialCommunityIcons 
-          name="chevron-right" 
-          size={24} 
-          color={theme.colors.onSurfaceVariant} 
+        <MaterialCommunityIcons
+          name="chevron-right"
+          size={24}
+          color={currentColors.textTertiary}
         />
-        </TouchableOpacity>
-      </Link>
-    </Card>
+      </TouchableOpacity>
+    </Link>
   );
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
+      <SafeAreaView style={{ flex: 1, backgroundColor: currentColors.background }}>
+        <View style={{ padding: Spacing.lg, paddingBottom: Spacing.sm }}>
+          <Skeleton width={180} height={26} borderRadius={8} />
+        </View>
+        <View style={{ paddingHorizontal: Spacing.lg }}>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={[styles.card, { marginBottom: Spacing.md }]}>
+              <Skeleton width={60} height={60} borderRadius={30} />
+              <View style={{ flex: 1, marginLeft: Spacing.md }}>
+                <Skeleton width={140} height={18} borderRadius={6} />
+                <Skeleton width={100} height={14} borderRadius={6} style={{ marginTop: 6 }} />
+                <Skeleton width={180} height={12} borderRadius={6} style={{ marginTop: 6 }} />
+              </View>
+            </View>
+          ))}
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: currentColors.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.onBackground }]}>
+        <Text style={[styles.title, { color: currentColors.text }]}>
           My Patients
         </Text>
       </View>
 
       {patients.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons 
-            name="account-group" 
-            size={64} 
-            color={theme.colors.onSurfaceVariant} 
+          <MaterialCommunityIcons
+            name="account-group"
+            size={64}
+            color={currentColors.textTertiary}
           />
-          <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant, marginBottom: 16 }]}>
-            {invalidPetIds.size > 0 
+          <Text style={[styles.emptyText, { color: currentColors.textSecondary, marginBottom: 16 }]}>
+            {invalidPetIds.size > 0
               ? 'Some appointments reference missing pet data'
               : 'No patients found'}
           </Text>
           {invalidPetIds.size > 0 && (
             <View style={styles.warningBox}>
-              <MaterialCommunityIcons 
-                name="alert-circle" 
-                size={24} 
-                color={theme.colors.error} 
+              <MaterialCommunityIcons
+                name="alert-circle"
+                size={24}
+                color="#EF4444"
                 style={styles.warningIcon}
               />
-              <Text style={[styles.warningText, { color: theme.colors.error }]}>
+              <Text style={[styles.warningText, { color: '#EF4444' }]}>
                 Found {invalidPetIds.size} appointment{invalidPetIds.size > 1 ? 's' : ''} with missing pet data.
               </Text>
             </View>
@@ -292,38 +306,42 @@ const MyPatients = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: currentColors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: currentColors.background,
   },
   header: {
-    padding: 20,
-    paddingBottom: 10,
+    padding: Spacing.lg,
+    paddingBottom: Spacing.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
   },
   listContent: {
-    padding: 16,
+    padding: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: 100,
   },
   card: {
-    marginBottom: 12,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  patientItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    backgroundColor: currentColors.surface,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadow.md,
   },
   petImage: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: 16,
+    marginRight: Spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -331,45 +349,49 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   petName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    marginBottom: 2,
+    color: currentColors.text,
   },
   ownerName: {
-    fontSize: 14,
-    marginBottom: 4,
+    fontSize: FontSize.sm,
+    marginBottom: 2,
+    color: currentColors.textSecondary,
   },
   detailsRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   detailText: {
-    fontSize: 12,
+    fontSize: FontSize.xs,
+    color: currentColors.textSecondary,
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.xl,
   },
   emptyText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: Spacing.md,
+    fontSize: FontSize.md,
     textAlign: 'center',
+    color: currentColors.textSecondary,
   },
   warningBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 0, 0, 0.1)',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.sm,
   },
   warningIcon: {
-    marginRight: 8,
+    marginRight: Spacing.sm,
   },
   warningText: {
-    fontSize: 14,
+    fontSize: FontSize.sm,
     flex: 1,
   },
 });
