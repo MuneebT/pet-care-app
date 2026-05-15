@@ -43,8 +43,8 @@ export default function VetLayout() {
   console.log('Pathname:', pathname);
   console.log('Segments:', segments);
   
-  // Don't show bottom nav on home screen or credentials screen
-  const shouldShowBottomNav = !['/vets/home', '/vets/credentials', '/(vets)/home', '/(vets)/credentials'].includes(pathname || '');
+  // Don't show bottom nav on credentials screen
+  const shouldShowBottomNav = !['/vets/credentials', '/(vets)/credentials'].includes(pathname || '');
   console.log('Show bottom nav?', shouldShowBottomNav);
 
   return (

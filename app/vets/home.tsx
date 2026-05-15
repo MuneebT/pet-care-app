@@ -1,10 +1,9 @@
 import { auth, db } from '@/services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { doc, getDoc } from 'firebase/firestore';
-import React, { useEffect, useState } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
+import React, { useCallback, useState } from 'react';
 import {
-    Alert,
     Dimensions,
     Image,
     SafeAreaView,
@@ -14,390 +13,382 @@ import {
     Text,
     TouchableOpacity,
     View,
-    useColorScheme
 } from 'react-native';
-import { Card, useTheme } from 'react-native-paper';
+import { BorderRadius, Spacing, Shadow, FontSize, FontWeight, currentColors } from '@/constants/theme';
+import Skeleton from '@/components/ui/skeleton';
+import VetBottomNavigationBar from './bootomna';
 
 const { width } = Dimensions.get('window');
-const CARD_SIZE = width * 0.4;
+
+const getGreeting = () => {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 12) return 'Good Morning';
+  if (hour >= 12 && hour < 17) return 'Good Afternoon';
+  if (hour >= 17 && hour < 21) return 'Good Evening';
+  return 'Good Night';
+};
 
 const Home = () => {
   const router = useRouter();
-  const theme = useTheme();
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(true);
   const [profileImage, setProfileImage] = useState<string | null>(null);
-  const colorScheme = useColorScheme();
-  
-  // Menu items for the grid
-  // Menu items for the grid
+  const [greeting] = useState(getGreeting());
+  const [todayAppointments, setTodayAppointments] = useState(0);
+  const [totalPatients, setTotalPatients] = useState(0);
+
   const menuItems = [
     {
-      id: 'profile',
-      title: 'My Profile',
-      icon: 'account' as const,
-      color: '#4CAF50',
-      onPress: () => {
-        const currentUserUid = auth.currentUser?.uid;
-        if (currentUserUid) {
-          router.push({
-            pathname: "/vets/myprofile",
-            params: { uid: currentUserUid },
-          });
-        }
-      }
-    },
-    {
-      id: 'detector',
-      title: 'Image Detector',
-      icon: 'camera' as const,
-      color: '#2196F3',
-      onPress: () => console.log('Image Detector pressed')
-    },
-    {
-      id: 'symptom',
-      title: 'Symptom Checker',
-      icon: 'stethoscope' as const,
-      color: '#FF9800',
-      onPress: () => console.log('Symptom Checker pressed')
-    },
-    {
-      id: 'health',
-      title: 'Health Records',
-      icon: 'file-document' as const,
-      color: '#9C27B0',
-      onPress: () => {
-        // Navigate to My Patients first to select a pet
-        router.push('/vets/mypatients');
-      }
+      id: 'patients',
+      title: 'My Patients',
+      subtitle: 'View and manage patients',
+      icon: 'account-group' as const,
+      color: '#EEF2FF',
+      iconBg: '#E0E7FF',
+      accent: '#6366F1',
+      onPress: () => router.push('/vets/mypatients'),
     },
     {
       id: 'appointments',
       title: 'Appointments',
-      icon: 'calendar' as const,
-      color: '#3F51B5',
-      onPress: () => router.push('/vets/appointments')
+      subtitle: 'Schedule and track visits',
+      icon: 'calendar-clock' as const,
+      color: '#F5F3FF',
+      iconBg: '#EDE9FE',
+      accent: '#8B5CF6',
+      onPress: () => router.push('/vets/appointments'),
     },
     {
-      id: 'patients',
-      title: 'My Patients',
-      icon: 'paw' as const,
-      color: '#E91E63',
-      onPress: () => router.push('/vets/mypatients')
+      id: 'health',
+      title: 'Health Records',
+      subtitle: 'Pet medical history',
+      icon: 'file-document' as const,
+      color: '#ECFDF5',
+      iconBg: '#D1FAE5',
+      accent: '#10B981',
+      onPress: () => router.push('/vets/mypatients'),
+    },
+    {
+      id: 'profile',
+      title: 'My Profile',
+      subtitle: 'Update your details',
+      icon: 'account' as const,
+      color: '#FFFBEB',
+      iconBg: '#FEF3C7',
+      accent: '#F59E0B',
+      onPress: () => {
+        const currentUserUid = auth.currentUser?.uid;
+        if (currentUserUid) {
+          router.push({ pathname: '/vets/myprofile', params: { uid: currentUserUid } });
+        }
+      },
     },
   ];
 
-  useEffect(() => {
-    const checkCredentials = async () => {
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
       const currentUserUid = auth.currentUser?.uid;
       if (!currentUserUid) {
         router.replace('/login');
         return;
       }
-      
-      try {
-        const vetDoc = await getDoc(doc(db, 'vets', currentUserUid));
-        if (!vetDoc.exists()) {
-          Alert.alert('Credentials Required', 'Please complete your vet credentials first');
-          router.replace('/vets/credentials');
-          return;
-        }
-        
-        // Set profile data if available
+
+      const userDoc = await getDoc(doc(db, 'users', currentUserUid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        setName(data.name || 'Veterinarian');
+        if (data.profileImage) setProfileImage(data.profileImage);
+      }
+
+      const vetDoc = await getDoc(doc(db, 'vets', currentUserUid));
+      if (!vetDoc.exists()) {
+        router.replace('/vets/credentials');
+        return;
+      }
+
+      if (vetDoc.exists()) {
         const vetData = vetDoc.data();
-        if (vetData) {
-          setName(vetData.name || '');
-          if (vetData.image) {
-            setProfileImage(vetData.image);
-          }
-        }
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error checking vet credentials:', error);
-        Alert.alert('Error', 'Failed to load your profile');
-        router.replace('/login');
-      } finally {
-        setLoading(false);
+        if (vetData.image && !profileImage) setProfileImage(vetData.image);
       }
-    };
-    
-    checkCredentials();
-  }, []);
 
-  const readVetName = async () => {
-    const currentUserUid = auth.currentUser?.uid;
-    if (!currentUserUid) {
-      console.log("No authenticated user");
-      return;
-    }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
 
-    try {
-      const ref = doc(db, "users", currentUserUid);
-      const snap = await getDoc(ref);
+      const appointmentsRef = collection(db, 'appointments');
+      const appointmentsQuery = query(
+        appointmentsRef,
+        where('vetId', '==', currentUserUid),
+        where('status', '==', 'confirmed')
+      );
+      const appointmentsSnap = await getDocs(appointmentsQuery);
+      setTodayAppointments(appointmentsSnap.size);
 
-      if (snap.exists()) {
-        const data = snap.data();
-        setName(data.name || "Veterinarian");
-      } else {
-        console.log("Vet document does not exist");
-      }
-    } catch (err) {
-      console.log("Error fetching vet name:", err);
+      const patientsSet = new Set<string>();
+      appointmentsSnap.forEach(doc => {
+        const d = doc.data();
+        if (d.petId) patientsSet.add(d.petId);
+      });
+      setTotalPatients(patientsSet.size);
+
+    } catch (error) {
+      console.error('Error loading vet data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <View style={[styles.loadingContainer, { backgroundColor: theme.colors.background }]}>
-        <Text>Loading...</Text>
-      </View>
+      <SafeAreaView style={[styles.container, { padding: Spacing.lg }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: Spacing.lg, paddingTop: Spacing.md }}>
+          <Skeleton width={52} height={52} borderRadius={26} />
+          <View style={{ marginLeft: Spacing.md, flex: 1 }}>
+            <Skeleton width={80} height={12} borderRadius={6} />
+            <Skeleton width={160} height={16} borderRadius={6} style={{ marginTop: 6 }} />
+          </View>
+        </View>
+        <Skeleton width={width - Spacing.lg * 2} height={120} borderRadius={BorderRadius.xl} style={{ marginBottom: Spacing.lg }} />
+        <View style={{ flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.lg }}>
+          <Skeleton width={(Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2} height={100} borderRadius={BorderRadius.lg} />
+          <Skeleton width={(Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2} height={100} borderRadius={BorderRadius.lg} />
+        </View>
+        <Skeleton width={120} height={18} borderRadius={6} style={{ marginBottom: Spacing.md }} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md }}>
+          {[1, 2, 3, 4].map(i => (
+            <Skeleton key={i} width={(Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2} height={140} borderRadius={BorderRadius.lg} />
+          ))}
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <ScrollView contentContainerStyle={styles.scrollView}>
-        {/* Header with greeting and notification bell */}
-        <View style={styles.header}>
-          <View style={styles.profileContainer}>
-            <View style={styles.avatar}>
-              {profileImage ? (
-                <Image 
-                  source={{ uri: profileImage }} 
-                  style={styles.avatarImage}
-                  resizeMode="cover"
-                />
-              ) : (
-                <MaterialCommunityIcons name="account" size={40} color="#fff" />
-              )}
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="dark-content" />
+        <ScrollView contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+          <View style={styles.header}>
+            <View style={styles.profileSection}>
+              <View style={styles.avatar}>
+                {profileImage ? (
+                  <Image source={{ uri: profileImage }} style={styles.avatarImage} resizeMode="cover" />
+                ) : (
+                  <MaterialCommunityIcons name="account" size={32} color="#94A3B8" />
+                )}
+              </View>
+              <View>
+                <Text style={styles.greeting}>{greeting},</Text>
+                <Text style={styles.name}>{name || 'Veterinarian'}</Text>
+              </View>
             </View>
-            <View style={styles.greetingContainer}>
-              <Text style={[styles.greeting, { color: theme.colors.onSurface }]}>Welcome back,</Text>
-              <Text style={[styles.name, { color: theme.colors.onSurface }]}>{name || 'Veterinarian'}</Text>
+            <TouchableOpacity onPress={() => router.push('/settings/vet')}>
+              <MaterialCommunityIcons name="cog-outline" size={26} color={currentColors.text} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.heroCard}>
+            <View style={styles.heroContent}>
+              <Text style={styles.heroTitle}>Veterinarian Dashboard</Text>
+              <Text style={styles.heroSubtitle}>Manage your patients, appointments, and health records all in one place.</Text>
+            </View>
+            <View style={styles.heroIconContainer}>
+              <MaterialCommunityIcons name="stethoscope" size={48} color={currentColors.primary} />
             </View>
           </View>
-          <TouchableOpacity style={styles.notificationIcon} onPress={() => console.log('Notifications pressed')}>
-            <MaterialCommunityIcons 
-              name="bell-outline" 
-              size={28} 
-              color={theme.colors.onSurface} 
-            />
-            <View style={styles.notificationBadge} />
-          </TouchableOpacity>
-        </View>
 
-        {/* Stats Cards */}
-        <View style={styles.statsContainer}>
-          <Card style={[styles.statCard, { backgroundColor: theme.colors.surface }]} >
-            <Card.Content style={styles.statCardContent}>
-              <Text style={[styles.statNumber, { color: theme.colors.primary }]}>12</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]} >
-                Today's Appointments
-              </Text>
-            </Card.Content>
-          </Card>
-          <Card style={[styles.statCard, { backgroundColor: theme.colors.surface }]} >
-            <Card.Content style={styles.statCardContent}>
-              <Text style={[styles.statNumber, { color: theme.colors.primary }]}>5</Text>
-              <Text style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]} >
-                Pending Requests
-              </Text>
-            </Card.Content>
-          </Card>
-        </View>
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: '#EEF2FF' }]}>
+              <MaterialCommunityIcons name="calendar-check" size={24} color="#6366F1" />
+              <Text style={[styles.statNumber, { color: '#6366F1' }]}>{todayAppointments}</Text>
+              <Text style={styles.statLabel}>Appointments</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: '#F5F3FF' }]}>
+              <MaterialCommunityIcons name="account-group" size={24} color="#8B5CF6" />
+              <Text style={[styles.statNumber, { color: '#8B5CF6' }]}>{totalPatients}</Text>
+              <Text style={styles.statLabel}>Active Patients</Text>
+            </View>
+          </View>
 
-        {/* Menu Grid */}
-        <View style={styles.menuGrid}>
-          {menuItems.map((item) => (
-            <TouchableOpacity 
-              key={item.id} 
-              style={styles.menuItem} 
-              onPress={item.onPress}
-              activeOpacity={0.8}
-            >
-              <Card style={[styles.menuCard, { backgroundColor: item.color }]} >
-                <Card.Content style={styles.menuCardContent}>
-                  <View style={[styles.iconContainer, { backgroundColor: `${item.color}33` }]} >
-                    <MaterialCommunityIcons 
-                      name={item.icon} 
-                      size={28} 
-                      color="#fff" 
-                    />
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+          </View>
+
+          <View style={styles.menuGrid}>
+            {menuItems.map((item) => (
+              <TouchableOpacity
+                key={item.id}
+                style={styles.menuItem}
+                onPress={item.onPress}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuCard, { backgroundColor: item.color }]}>
+                  <View style={[styles.menuIconContainer, { backgroundColor: item.iconBg }]}>
+                    <MaterialCommunityIcons name={item.icon} size={26} color={item.accent} />
                   </View>
                   <Text style={styles.menuItemTitle}>{item.title}</Text>
-                </Card.Content>
-              </Card>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Developer Section */}
-        <View style={[styles.developerSection, { backgroundColor: theme.colors.surfaceVariant }]} >
-          <Text style={[styles.developerTitle, { color: theme.colors.onSurfaceVariant }]} >
-            Developed By
-          </Text>
-          <Text style={[styles.developerName, { color: theme.colors.onSurfaceVariant }]} >
-            Muneeb Tariq
-          </Text>
-          <Text style={[styles.developerName, { color: theme.colors.onSurfaceVariant }]} >
-            Muhammad Islam
-          </Text>
-          <Text style={[styles.developerName, { color: theme.colors.onSurfaceVariant }]} >
-            Hammad-ul-Hassan
-          </Text>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+                  <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+      <VetBottomNavigationBar show={true} />
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: currentColors.background,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  contentContainer: {
+    padding: Spacing.lg,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  scrollView: {
-    flexGrow: 1,
-    padding: 16,
-    paddingBottom: 24,
+    backgroundColor: currentColors.background,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
-    marginTop: 8,
+    marginBottom: Spacing.lg,
+    paddingTop: Spacing.md,
   },
-  profileContainer: {
+  profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    gap: Spacing.md,
   },
   avatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2196F3',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#F1F5F9',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
     overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    ...Shadow.md,
   },
   avatarImage: {
     width: '100%',
     height: '100%',
   },
-  greetingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-  },
   greeting: {
-    fontSize: 14,
-    marginBottom: 2,
+    fontSize: FontSize.sm,
+    color: currentColors.textSecondary,
   },
   name: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
   },
-  notificationIcon: {
-    padding: 8,
-    position: 'relative',
-    marginLeft: 8,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    right: 8,
-    top: 8,
-    backgroundColor: '#FF3B30',
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statsContainer: {
+  heroCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
+    backgroundColor: currentColors.primary,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadow.lg,
+  },
+  heroContent: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  heroTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: '#FFFFFF',
+    marginBottom: Spacing.xs,
+  },
+  heroSubtitle: {
+    fontSize: FontSize.sm,
+    color: 'rgba(255,255,255,0.85)',
+    lineHeight: 20,
+  },
+  heroIconContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.5,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    marginBottom: Spacing.lg,
   },
   statCard: {
-    width: '48%',
-    borderRadius: 12,
-    elevation: 2,
-  },
-  statCardContent: {
-    padding: 16,
+    flex: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
+    ...Shadow.md,
   },
   statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    marginTop: Spacing.xs,
   },
   statLabel: {
-    fontSize: 12,
-    textAlign: 'center',
+    fontSize: FontSize.xs,
+    color: currentColors.textSecondary,
+    marginTop: 2,
+  },
+  sectionHeader: {
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
   },
   menuGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginHorizontal: -4,
+    gap: Spacing.md,
   },
   menuItem: {
-    width: '48%',
-    marginBottom: 16,
-    paddingHorizontal: 4,
+    width: (width - Spacing.lg * 2 - Spacing.md) / 2,
   },
   menuCard: {
-    borderRadius: 12,
-    elevation: 2,
-    overflow: 'hidden',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    minHeight: 140,
+    ...Shadow.md,
   },
-  menuCardContent: {
-    padding: 12,
-    alignItems: 'center',
-  },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  menuIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   menuItemTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 4,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+    color: currentColors.text,
+    marginBottom: 2,
   },
-  developerSection: {
-    marginTop: 24,
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginHorizontal: 0,
-    width: '100%',
-  },
-  developerTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  developerName: {
-    marginTop: 4,
-    fontWeight: '500',
+  menuItemSubtitle: {
+    fontSize: FontSize.xs,
+    color: currentColors.textSecondary,
   },
 });
 
