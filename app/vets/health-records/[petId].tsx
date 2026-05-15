@@ -7,10 +7,11 @@ import * as FileSystem from 'expo-file-system';
 import { Paths } from 'expo-file-system';
 import { useLocalSearchParams } from 'expo-router';
 import * as Sharing from 'expo-sharing';
-import { addDoc, collection, deleteDoc, doc, getDocs, orderBy, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
+import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, orderBy, query, serverTimestamp, Timestamp, updateDoc, where, writeBatch } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { Button, Card, Divider, FAB, Menu, Modal, Portal, Snackbar, Text, useTheme } from 'react-native-paper';
+import Skeleton from '@/components/ui/skeleton';
 // Use cache directory for temporary files like CSV exports
 const cacheDir = Paths.cache.uri;
 // TODO: Uncomment and implement useAuth hook
@@ -55,6 +56,81 @@ const HealthRecordsScreen = () => {
   const [exportMenuVisible, setExportMenuVisible] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+  const [petName, setPetName] = useState('');
+  const [petImage, setPetImage] = useState<string | null>(null);
+  const [petType, setPetType] = useState('');
+  const [petBreed, setPetBreed] = useState('');
+  const [ownerId, setOwnerId] = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<any[]>([]);
+
+  const toDate = (val: any): Date | null => {
+    if (!val) return null;
+    if (typeof val.toDate === 'function') return val.toDate();
+    if (val instanceof Date) return val;
+    if (typeof val === 'string' || typeof val === 'number') return new Date(val);
+    if (val.seconds) return new Date(val.seconds * 1000);
+    return null;
+  };
+
+  const fetchPetInfo = async () => {
+    if (!petId) return;
+    try {
+      const appointmentsRef = collection(db, 'appointments');
+      const q = query(appointmentsRef, where('petId', '==', petId));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const firstAppt = snapshot.docs[0].data();
+        const uid = firstAppt.userId;
+        if (uid) {
+          setOwnerId(uid);
+          const petDoc = await getDoc(doc(db, 'users', uid, 'pets', petId));
+          if (petDoc.exists()) {
+            const data = petDoc.data();
+            setPetName(data.name || '');
+            setPetImage(data.image || null);
+            setPetType(data.type || '');
+            setPetBreed(data.breed || '');
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching pet info:', err);
+    }
+  };
+
+  const fetchPredictions = async () => {
+    if (!ownerId || !petType) return;
+    try {
+      const ref = collection(db, 'users', ownerId, 'healthRecords');
+      const q = query(ref, orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      const matched: any[] = [];
+      snap.forEach(docSnap => {
+        const d = docSnap.data();
+        if (d.animalType?.toLowerCase() === petType.toLowerCase()) {
+          matched.push({
+            id: docSnap.id,
+            prediction: d.prediction || 'Unknown',
+            primaryPrediction: d.primaryPrediction || d.prediction || 'Unknown',
+            savedDiseases: Array.isArray(d.savedDiseases) ? d.savedDiseases : [],
+            confidence: d.confidence ?? 0,
+            severity: d.severity || 'Unknown',
+            recommendations: Array.isArray(d.recommendations) ? d.recommendations : [],
+            selectedSymptoms: Array.isArray(d.selectedSymptoms) ? d.selectedSymptoms : [],
+            createdAt: toDate(d.createdAt),
+            source: d.source,
+          });
+        }
+      });
+      setPredictions(matched);
+    } catch (err) {
+      console.error('Error fetching predictions:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (ownerId && petType) fetchPredictions();
+  }, [ownerId, petType]);
 
   const addTestHealthRecords = async () => {
     if (!petId) return;
@@ -143,6 +219,7 @@ const HealthRecordsScreen = () => {
 
   useEffect(() => {
     fetchRecords();
+    fetchPetInfo();
   }, [petId]);
 
   const handleInputChange = (field: keyof HealthRecordFormData, value: string) => {
@@ -307,8 +384,33 @@ const HealthRecordsScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+          <Skeleton width={44} height={44} borderRadius={22} style={{ marginRight: 12 }} />
+          <Skeleton width={160} height={20} borderRadius={8} />
+        </View>
+        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+          <Skeleton width={160} height={18} borderRadius={8} style={{ marginBottom: 8 }} />
+          {[1, 2].map(i => (
+            <View key={i} style={{ backgroundColor: theme.colors.surface, borderRadius: 12, padding: 16, marginBottom: 12, elevation: 2 }}>
+              <Skeleton width={180} height={18} borderRadius={6} />
+              <Skeleton width={120} height={12} borderRadius={6} style={{ marginTop: 6 }} />
+              <Skeleton width={100} height={16} borderRadius={6} style={{ marginTop: 6 }} />
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                {[1, 2, 3].map(j => <Skeleton key={j} width={60} height={22} borderRadius={10} />)}
+              </View>
+            </View>
+          ))}
+        </View>
+        <View style={{ paddingHorizontal: 16 }}>
+          {[1, 2].map(i => (
+            <View key={i} style={{ margin: 8, marginBottom: 16, backgroundColor: theme.colors.surface, borderRadius: 8, elevation: 2, padding: 16 }}>
+              <Skeleton width={160} height={18} borderRadius={6} />
+              <Skeleton width={200} height={14} borderRadius={6} style={{ marginTop: 8 }} />
+              <Skeleton width={140} height={14} borderRadius={6} style={{ marginTop: 6 }} />
+            </View>
+          ))}
+        </View>
       </View>
     );
   }
@@ -327,111 +429,183 @@ const HealthRecordsScreen = () => {
       >
         {snackbarMessage}
       </Snackbar>
-      {records.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={theme.colors.primary} />
-          <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-            No health records found
-          </Text>
-          <Button 
-            mode="contained" 
-            onPress={() => setModalVisible(true)}
-            style={styles.addButton}
-          >
-            Add First Record
-          </Button>
-        </View>
-      ) : (
-        <ScrollView style={styles.scrollView}>
-          {records.map(record => (
-            <Card key={record.id} style={[styles.card, { backgroundColor: theme.colors.surface }]}>
-              <Card.Title
-                title={record.name}
-                titleStyle={{ color: theme.colors.onSurface }}
-                subtitle={`${record.recordType.charAt(0).toUpperCase() + record.recordType.slice(1)} • ${format(record.date as Date, 'MMM d, yyyy')}`}
-                subtitleStyle={{ color: theme.colors.onSurfaceVariant }}
-                left={props => (
-                  <MaterialCommunityIcons 
-                    {...props} 
-                    name={getRecordIcon(record.recordType)} 
-                    size={24} 
-                    color={theme.colors.primary} 
-                  />
-                )}
-                right={props => (
-                  <Menu
-                    visible={menuVisible.visible && menuVisible.recordId === record.id}
-                    onDismiss={closeMenu}
-                    anchor={
-                      <MaterialCommunityIcons
-                        {...props}
-                        name="dots-vertical"
-                        size={24}
-                        color={theme.colors.onSurfaceVariant}
-                        onPress={() => openMenu(record.id!)}
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {petName ? (
+          <View style={styles.petHeader}>
+            {petImage ? (
+              <Image source={{ uri: petImage }} style={styles.petHeaderImage} />
+            ) : (
+              <View style={[styles.petHeaderImage, styles.petHeaderPlaceholder]}>
+                <MaterialCommunityIcons name="paw" size={24} color={theme.colors.primary} />
+              </View>
+            )}
+            <Text style={[styles.petHeaderName, { color: theme.colors.onSurface }]}>{petName}</Text>
+          </View>
+        ) : null}
+
+        {predictions.length > 0 && (
+          <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: theme.colors.onSurface, marginBottom: 8 }}>
+              AI Predicted Diseases
+            </Text>
+            {predictions.map(p => {
+              const severityColor = p.severity === 'High' ? '#EF4444' : p.severity === 'Medium' ? '#F59E0B' : '#10B981';
+              const pctColor = p.confidence >= 70 ? '#10B981' : p.confidence >= 40 ? '#F59E0B' : '#EF4444';
+              return (
+                <Card key={p.id} style={[styles.predictionCard, { backgroundColor: theme.colors.surface }]}>
+                  <Card.Content>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '700', color: theme.colors.onSurface, flex: 1 }}>
+                        {p.primaryPrediction}
+                      </Text>
+                      <View style={{ backgroundColor: severityColor, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 12 }}>
+                        <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>{p.severity}</Text>
+                      </View>
+                    </View>
+                    {p.createdAt && (
+                      <Text style={{ fontSize: 12, color: theme.colors.onSurfaceVariant, marginBottom: 6 }}>
+                        {p.createdAt.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </Text>
+                    )}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                      <Text style={{ fontSize: 13, color: theme.colors.onSurfaceVariant }}>Confidence: </Text>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: pctColor }}>{p.confidence.toFixed(1)}%</Text>
+                    </View>
+                    {p.savedDiseases.length > 1 && (
+                      <Text style={{ fontSize: 12, color: theme.colors.onSurfaceVariant, marginBottom: 4 }}>
+                        All: {p.savedDiseases.join(', ')}
+                      </Text>
+                    )}
+                    {p.selectedSymptoms.length > 0 && (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                        {p.selectedSymptoms.map((s: string, i: number) => (
+                          <View key={i} style={{ backgroundColor: theme.colors.surfaceVariant, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 }}>
+                            <Text style={{ fontSize: 11, color: theme.colors.onSurfaceVariant }}>{s}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                    {p.recommendations?.length > 0 && (
+                      <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: theme.colors.surfaceVariant }}>
+                        <Text style={{ fontSize: 12, fontWeight: '600', color: theme.colors.primary, marginBottom: 2 }}>Recommendations:</Text>
+                        {p.recommendations.map((r: string, i: number) => (
+                          <Text key={i} style={{ fontSize: 12, color: theme.colors.onSurfaceVariant, marginLeft: 4 }}>• {r}</Text>
+                        ))}
+                      </View>
+                    )}
+                  </Card.Content>
+                </Card>
+              );
+            })}
+          </View>
+        )}
+
+        {records.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <MaterialCommunityIcons name="clipboard-text-outline" size={64} color={theme.colors.primary} />
+            <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+              No health records found
+            </Text>
+            <Button 
+              mode="contained" 
+              onPress={() => setModalVisible(true)}
+              style={styles.addButton}
+            >
+              Add First Record
+            </Button>
+          </View>
+        ) : (
+          <>
+            {records.map(record => (
+              <Card key={record.id} style={[styles.card, { backgroundColor: theme.colors.surface }]}>
+                <Card.Title
+                  title={record.name}
+                  titleStyle={{ color: theme.colors.onSurface }}
+                  subtitle={`${record.recordType.charAt(0).toUpperCase() + record.recordType.slice(1)} • ${format(record.date as Date, 'MMM d, yyyy')}`}
+                  subtitleStyle={{ color: theme.colors.onSurfaceVariant }}
+                  left={props => (
+                    <MaterialCommunityIcons 
+                      {...props} 
+                      name={getRecordIcon(record.recordType)} 
+                      size={24} 
+                      color={theme.colors.primary} 
+                    />
+                  )}
+                  right={props => (
+                    <Menu
+                      visible={menuVisible.visible && menuVisible.recordId === record.id}
+                      onDismiss={closeMenu}
+                      anchor={
+                        <MaterialCommunityIcons
+                          {...props}
+                          name="dots-vertical"
+                          size={24}
+                          color={theme.colors.onSurfaceVariant}
+                          onPress={() => openMenu(record.id!)}
+                        />
+                      }
+                    >
+                      <Menu.Item 
+                        onPress={() => {
+                          closeMenu();
+                          openEditModal(record);
+                        }} 
+                        title="Edit" 
                       />
-                    }
-                  >
-                    <Menu.Item 
-                      onPress={() => {
-                        closeMenu();
-                        openEditModal(record);
-                      }} 
-                      title="Edit" 
-                    />
-                    <Divider />
-                    <Menu.Item 
-                      onPress={() => {
-                        closeMenu();
-                        Alert.alert(
-                          'Delete Record',
-                          'Are you sure you want to delete this record?',
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Delete', style: 'destructive', onPress: () => handleDelete(record.id!) }
-                          ]
-                        );
-                      }} 
-                      title="Delete"
-                      titleStyle={{ color: theme.colors.error }}
-                    />
-                  </Menu>
-                )}
-              />
-              <Card.Content>
-                <Text style={{ color: theme.colors.onSurface }}>{record.description}</Text>
-                {(record.medicine || record.dosage) && (
-                  <View style={styles.medicineContainer}>
-                    {record.medicine && (
-                      <View style={styles.detailRow}>
-                        <MaterialCommunityIcons name="pill" size={16} color={theme.colors.primary} />
-                        <Text style={[styles.detailText, { color: theme.colors.onSurface }]}>{record.medicine}</Text>
-                      </View>
-                    )}
-                    {record.dosage && (
-                      <View style={styles.detailRow}>
-                        <MaterialCommunityIcons name="scale" size={16} color={theme.colors.primary} />
-                        <Text style={[styles.detailText, { color: theme.colors.onSurface }]}>{record.dosage}</Text>
-                      </View>
-                    )}
-                  </View>
-                )}
-                {record.notes && (
-                  <View style={styles.notesContainer}>
-                    <Text style={[styles.notesLabel, { color: theme.colors.primary }]}>Notes:</Text>
-                    <Text style={{ color: theme.colors.onSurface }}>{record.notes}</Text>
-                  </View>
-                )}
-              </Card.Content>
-              <Card.Actions>
-                <Text style={[styles.vetText, { color: theme.colors.onSurfaceVariant }]}>
-                  Added by {record.vetName || 'Veterinarian'}
-                </Text>
-              </Card.Actions>
-            </Card>
-          ))}
-        </ScrollView>
-      )}
+                      <Divider />
+                      <Menu.Item 
+                        onPress={() => {
+                          closeMenu();
+                          Alert.alert(
+                            'Delete Record',
+                            'Are you sure you want to delete this record?',
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Delete', style: 'destructive', onPress: () => handleDelete(record.id!) }
+                            ]
+                          );
+                        }} 
+                        title="Delete"
+                        titleStyle={{ color: theme.colors.error }}
+                      />
+                    </Menu>
+                  )}
+                />
+                <Card.Content>
+                  <Text style={{ color: theme.colors.onSurface }}>{record.description}</Text>
+                  {(record.medicine || record.dosage) && (
+                    <View style={styles.medicineContainer}>
+                      {record.medicine && (
+                        <View style={styles.detailRow}>
+                          <MaterialCommunityIcons name="pill" size={16} color={theme.colors.primary} />
+                          <Text style={[styles.detailText, { color: theme.colors.onSurface }]}>{record.medicine}</Text>
+                        </View>
+                      )}
+                      {record.dosage && (
+                        <View style={styles.detailRow}>
+                          <MaterialCommunityIcons name="scale" size={16} color={theme.colors.primary} />
+                          <Text style={[styles.detailText, { color: theme.colors.onSurface }]}>{record.dosage}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  {record.notes && (
+                    <View style={styles.notesContainer}>
+                      <Text style={[styles.notesLabel, { color: theme.colors.primary }]}>Notes:</Text>
+                      <Text style={{ color: theme.colors.onSurface }}>{record.notes}</Text>
+                    </View>
+                  )}
+                </Card.Content>
+                <Card.Actions>
+                  <Text style={[styles.vetText, { color: theme.colors.onSurfaceVariant }]}>
+                    Added by {record.vetName || 'Veterinarian'}
+                  </Text>
+                </Card.Actions>
+              </Card>
+            ))}
+          </>
+        )}
+      </ScrollView>
 
       <Portal>
         <View style={styles.fabContainer}>
@@ -510,6 +684,33 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  petHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'transparent',
+  },
+  petHeaderImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 12,
+  },
+  petHeaderPlaceholder: {
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  petHeaderName: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  predictionCard: {
+    marginBottom: 12,
+    borderRadius: 12,
+    elevation: 2,
+  },
   exportButton: {
     margin: 8,
   },
@@ -539,8 +740,6 @@ const styles = StyleSheet.create({
   },
   scrollView: {
     flex: 1,
-    padding: 16,
-    paddingBottom: 100, // Add more padding at the bottom
   },
   card: {
     margin: 8,
