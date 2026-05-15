@@ -1,4 +1,5 @@
 import { auth, db } from '@/services/firebase';
+import { uploadToCloudinary } from '@/services/cloudinary';
 import { router } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
@@ -57,6 +58,7 @@ const MyPetRecords = () => {
   const [gender, setGender] = useState('');
   const [age, setAge] = useState('');
   const [image, setImage] = useState('');
+  const [imageUploading, setImageUploading] = useState(false);
   const [showTypeDropdown, setShowTypeDropdown] = useState<boolean>(false);
   const [showBreedDropdown, setShowBreedDropdown] = useState<boolean>(false);
 
@@ -105,16 +107,17 @@ const MyPetRecords = () => {
     }
   }, [currentUser, name, type, breed, gender, age, image]);
 
-  const handleImagePick = () => {
-    Alert.alert(
-      'Add Pet Photo',
-      'Choose how you want to add a photo',
-      [
-        { text: 'Camera', onPress: () => console.log('Camera pressed') },
-        { text: 'Photo Library', onPress: () => console.log('Gallery pressed') },
-        { text: 'Cancel', style: 'cancel' },
-      ]
-    );
+  const handleImagePick = async (uri: string) => {
+    setImageUploading(true);
+    try {
+      const cloudinaryUrl = await uploadToCloudinary(uri);
+      setImage(cloudinaryUrl);
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      Alert.alert('Error', 'Failed to upload image. Please try again.');
+    } finally {
+      setImageUploading(false);
+    }
   };
 
   if (isLoading) {
@@ -175,6 +178,7 @@ const MyPetRecords = () => {
               <PetImagePicker
                 imageUri={image}
                 onImageSelected={handleImagePick}
+                uploading={imageUploading}
               />
 
               <View style={styles.formContainer}>
@@ -491,9 +495,11 @@ const styles = StyleSheet.create({
   },
   bottomNav: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
+    pointerEvents: 'box-none',
   },
 });
 

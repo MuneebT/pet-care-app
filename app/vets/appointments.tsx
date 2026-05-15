@@ -12,9 +12,8 @@ import {
   updateDoc,
   where
 } from "firebase/firestore";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   FlatList,
   RefreshControl,
@@ -25,7 +24,9 @@ import {
   View,
   ViewStyle
 } from "react-native";
-import { Button, useTheme } from "react-native-paper";
+import { Button } from "react-native-paper";
+import { BorderRadius, Spacing, Shadow, FontSize, FontWeight, currentColors } from '@/constants/theme';
+import Skeleton from '@/components/ui/skeleton';
 
 type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled';
 
@@ -78,27 +79,27 @@ interface Styles {
 const styles = StyleSheet.create<Styles>({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: currentColors.background,
   },
   innerContainer: {
     flex: 1,
   },
   scrollViewContent: {
-    padding: 16,
-    paddingBottom: 20,
+    padding: Spacing.md,
+    paddingBottom: Spacing.lg,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    paddingTop: 16,
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
   },
   loadingContainer: {
     flex: 1,
@@ -109,92 +110,84 @@ const styles = StyleSheet.create<Styles>({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.lg,
   },
   errorText: {
-    color: 'red',
-    marginBottom: 20,
+    color: currentColors.error,
+    marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   filterContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    margin: 16,
+    margin: Spacing.md,
     marginTop: 0,
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
+    backgroundColor: currentColors.surfaceVariant,
+    borderRadius: BorderRadius.sm,
     padding: 4,
   },
   filterButton: {
     flex: 1,
-    paddingVertical: 8,
-    borderRadius: 6,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
   },
   activeFilterButton: {
-    backgroundColor: 'white',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    backgroundColor: currentColors.surface,
+    ...Shadow.sm,
   },
   filterText: {
-    color: '#666',
-    fontWeight: '500',
+    color: currentColors.textSecondary,
+    fontWeight: FontWeight.medium,
   },
   activeFilterText: {
-    color: '#007AFF',
-    fontWeight: '600',
+    color: currentColors.primary,
+    fontWeight: FontWeight.semibold,
   },
   card: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 2,
+    backgroundColor: currentColors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.md,
+    marginBottom: Spacing.sm,
+    ...Shadow.md,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.semibold,
+    color: currentColors.text,
   },
   statusBadge: (status: string) => ({
     paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     backgroundColor: status === 'confirmed' ? '#d4edda' : 
                    status === 'pending' ? '#fff3cd' : '#f8d7da',
   } as ViewStyle),
   statusText: (status: string) => ({
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.semibold,
     color: status === 'confirmed' ? '#155724' : 
            status === 'pending' ? '#856404' : '#721c24',
   } as TextStyle),
   ownerName: {
-    color: '#666',
+    color: currentColors.textSecondary,
     marginBottom: 4,
   },
   dateTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: Spacing.sm,
   },
   dateTimeText: {
-    color: '#666',
-    fontSize: 14,
+    color: currentColors.textSecondary,
+    fontSize: FontSize.sm,
     marginLeft: 6,
   },
   emptyState: {
@@ -204,32 +197,32 @@ const styles = StyleSheet.create<Styles>({
     marginTop: 50,
   },
   emptyStateText: {
-    fontSize: 16,
-    color: '#999',
+    fontSize: FontSize.md,
+    color: currentColors.textTertiary,
     textAlign: 'center',
     marginTop: 10,
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-    marginTop: 12,
+    marginTop: Spacing.sm,
   },
   actionButton: {
-    marginLeft: 8,
-    paddingHorizontal: 12,
+    marginLeft: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    borderRadius: 6,
+    borderRadius: BorderRadius.sm,
   },
   confirmButton: {
-    backgroundColor: '#28a745',
+    backgroundColor: currentColors.success,
   },
   cancelButton: {
-    backgroundColor: '#dc3545',
+    backgroundColor: currentColors.error,
   },
   actionButtonText: {
-    color: 'white',
-    fontSize: 14,
-    fontWeight: '500',
+    color: currentColors.white,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.medium,
   },
 });
 
@@ -237,10 +230,14 @@ const VetAppointments: React.FC = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [filter, setFilter] = useState<'all' | AppointmentStatus>('all');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const cachedFilterRef = useRef<'all' | AppointmentStatus>('all');
+  const CACHE_TTL = 60_000;
   const [isLoading, setIsLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
+
 
   // Format date to readable string
   const formatDate = useCallback((date: Date | Timestamp) => {
@@ -307,10 +304,63 @@ const VetAppointments: React.FC = () => {
     }
   };
 
-  // Fetch appointments from Firestore
-  const fetchAppointments = useCallback(async () => {
+  const processSnapshot = useCallback(async (querySnapshot: any, isFirstSnapshot: boolean) => {
+    const appointmentsData: Appointment[] = [];
+    
+    for (const doc of querySnapshot.docs) {
+      try {
+        const data = doc.data();
+        const appointmentDate = parseFirestoreDate(data.date);
+        const createdAt = parseFirestoreDate(data.createdAt);
+        const updatedAt = parseFirestoreDate(data.updatedAt);
+        
+        const { ownerName, petName } = await fetchUserAndPetData(data.userId, data.petId);
+        
+        appointmentsData.push({
+          id: doc.id,
+          userId: data.userId || '',
+          petId: data.petId || '',
+          vetId: data.vetId || currentUser!.uid,
+          petName: petName,
+          ownerName: ownerName,
+          date: appointmentDate,
+          time: data.time || formatTime(appointmentDate),
+          status: (data.status as AppointmentStatus) || 'pending',
+          createdAt: createdAt,
+          updatedAt: updatedAt,
+        });
+      } catch (err) {
+        console.error('Error processing document:', doc.id, err);
+      }
+    }
+
+    const filteredAppointments = filter === 'all' 
+      ? appointmentsData 
+      : appointmentsData.filter(appt => appt.status === filter);
+
+    lastFetchRef.current = Date.now();
+    cachedFilterRef.current = filter;
+    setAppointments(filteredAppointments);
+    setRefreshing(false);
+
+    if (isFirstSnapshot) {
+      setIsLoading(false);
+    }
+  }, [currentUser, filter]);
+
+  const fetchAppointments = useCallback((force = false) => {
     if (!currentUser) {
       setIsLoading(false);
+      return;
+    }
+
+    const now = Date.now();
+    const cacheAge = now - lastFetchRef.current;
+    const isCacheFresh = cacheAge < CACHE_TTL && cachedFilterRef.current === filter;
+
+    if (isCacheFresh && !force) {
+      setIsLoading(false);
+      setRefreshing(false);
       return;
     }
 
@@ -324,61 +374,26 @@ const VetAppointments: React.FC = () => {
         orderBy('date', 'desc')
       );
 
+      let isFirstSnapshot = true;
+
       const unsubscribe = onSnapshot(q, async (querySnapshot) => {
-        const appointmentsData: Appointment[] = [];
-        
-        // Process each appointment
-        for (const doc of querySnapshot.docs) {
-          try {
-            const data = doc.data();
-            const appointmentDate = parseFirestoreDate(data.date);
-            const createdAt = parseFirestoreDate(data.createdAt);
-            const updatedAt = parseFirestoreDate(data.updatedAt);
-            
-            // Fetch user and pet data
-            const { ownerName, petName } = await fetchUserAndPetData(data.userId, data.petId);
-            
-            appointmentsData.push({
-              id: doc.id,
-              userId: data.userId || '',
-              petId: data.petId || '',
-              vetId: data.vetId || currentUser.uid,
-              petName: petName,
-              ownerName: ownerName,
-              date: appointmentDate,
-              time: data.time || formatTime(appointmentDate),
-              status: (data.status as AppointmentStatus) || 'pending',
-              createdAt: createdAt,
-              updatedAt: updatedAt,
-            });
-          } catch (err) {
-            console.error('Error processing document:', doc.id, err);
-          }
-        }
-
-        // Filter appointments based on the selected filter
-        const filteredAppointments = filter === 'all' 
-          ? appointmentsData 
-          : appointmentsData.filter(appt => appt.status === filter);
-
-        setAppointments(filteredAppointments);
-        setRefreshing(false);
+        await processSnapshot(querySnapshot, isFirstSnapshot);
+        isFirstSnapshot = false;
       });
 
-      return () => unsubscribe();
+      unsubscribeRef.current = unsubscribe;
     } catch (err) {
       console.error('Error fetching appointments:', err);
       setError('Failed to load appointments. Please try again.');
       setRefreshing(false);
-    } finally {
       setIsLoading(false);
     }
-  }, [currentUser, filter]);
+  }, [currentUser, filter, processSnapshot]);
 
   // Handle refresh
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    fetchAppointments();
+    fetchAppointments(true);
   }, [fetchAppointments]);
 
   // Handle appointment status update
@@ -408,9 +423,19 @@ const VetAppointments: React.FC = () => {
 
   // Fetch appointments when currentUser or filter changes
   useEffect(() => {
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
     if (currentUser) {
       fetchAppointments();
     }
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
   }, [currentUser, filter, fetchAppointments]);
 
   // Render appointment item
@@ -465,7 +490,22 @@ const VetAppointments: React.FC = () => {
   if (isLoading && !refreshing) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Skeleton width={200} height={16} borderRadius={8} style={{ marginBottom: Spacing.lg }} />
+          <View style={{ marginHorizontal: Spacing.md, marginBottom: Spacing.md }}>
+            <View style={{ flexDirection: 'row', gap: Spacing.sm }}>
+              {[1, 2, 3].map(i => <Skeleton key={i} width={100} height={36} borderRadius={BorderRadius.sm} />)}
+            </View>
+          </View>
+          {[1, 2, 3].map(i => (
+            <View key={i} style={{ backgroundColor: currentColors.surface, borderRadius: BorderRadius.md, padding: Spacing.md, marginHorizontal: Spacing.md, marginBottom: Spacing.sm }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.sm }}>
+                <Skeleton width={140} height={18} borderRadius={6} />
+                <Skeleton width={70} height={22} borderRadius={12} />
+              </View>
+              <Skeleton width={100} height={14} borderRadius={6} />
+              <Skeleton width={180} height={14} borderRadius={6} style={{ marginTop: 4 }} />
+            </View>
+          ))}
       </View>
     );
   }
@@ -476,7 +516,7 @@ const VetAppointments: React.FC = () => {
         <Text style={styles.errorText}>{error}</Text>
         <Button 
           mode="contained" 
-          onPress={fetchAppointments} 
+          onPress={() => fetchAppointments(true)} 
           style={{ marginTop: 10 }}
         >
           Retry
@@ -571,8 +611,8 @@ const VetAppointments: React.FC = () => {
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[theme.colors.primary]}
-                tintColor={theme.colors.primary}
+                colors={[currentColors.primary]}
+                tintColor={currentColors.primary}
               />
             }
             ListFooterComponent={<View style={{ height: 20 }} />}

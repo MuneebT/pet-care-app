@@ -3,10 +3,19 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useTheme } from 'react-native-paper';
+import { Dimensions, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { BorderRadius, Spacing, Shadow, FontSize, FontWeight, currentColors } from '@/constants/theme';
+import Skeleton from '@/components/ui/skeleton';
 
-// Utility function to format dates
+const safeToDate = (val: any): Date | null => {
+  if (!val) return null;
+  if (typeof val.toDate === 'function') return val.toDate();
+  if (val instanceof Date) return val;
+  if (typeof val === 'string' || typeof val === 'number') return new Date(val);
+  if (val.seconds) return new Date(val.seconds * 1000);
+  return null;
+};
+
 const formatDate = (date: Date): string => {
   return new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -34,7 +43,7 @@ interface PetDetails {
   weight?: string;
   ownerName?: string;
   ownerId?: string;
-  photoURL?: string;
+  image?: string;
   lastVisit?: string;
   medicalHistory?: string;
   createdAt?: string;
@@ -46,18 +55,10 @@ export default function PatientDetail() {
   const [pet, setPet] = useState<PetDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const theme = useTheme();
   
-  // Format date utility function
-  const formatDate = (date: Date | null | undefined): string => {
+  const fmtDate = (date: Date | null | undefined): string => {
     if (!date) return 'N/A';
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+    return formatDate(date);
   };
 
   useEffect(() => {
@@ -112,32 +113,7 @@ export default function PatientDetail() {
           console.error(`Error fetching owner ${ownerId}:`, error);
         }
         
-        // Process the appointment date from the first appointment
-        let lastVisit: Date | null = null;
-        const appointmentDate = firstAppointment.date;
-        if (appointmentDate) {
-          try {
-            // Check if it's a Firestore Timestamp
-            if (typeof appointmentDate.toDate === 'function') {
-              lastVisit = appointmentDate.toDate();
-            }
-            // Handle string or number timestamps
-            else if (typeof appointmentDate === 'string' || typeof appointmentDate === 'number') {
-              lastVisit = new Date(appointmentDate);
-            }
-            // Handle if it's already a Date object
-            else if (appointmentDate instanceof Date) {
-              lastVisit = appointmentDate;
-            }
-            
-            if (lastVisit) {
-              console.log('Appointment date:', lastVisit);
-              console.log('Formatted appointment date:', formatDate(lastVisit));
-            }
-          } catch (e) {
-            console.warn('Error processing appointment date:', e);
-          }
-        }
+        const lastVisit = safeToDate(firstAppointment.date);
         
         try {
           // Now fetch the pet details from the user's pets subcollection
@@ -156,11 +132,11 @@ export default function PatientDetail() {
               weight: petData?.weight,
               ownerName: ownerName,
               ownerId: ownerId,
-              photoURL: petData?.photoURL,
+              image: petData?.image,
               lastVisit: lastVisit ? formatDate(lastVisit) : 'No visits yet',
               medicalHistory: petData?.medicalHistory || 'No medical history available',
-              createdAt: petData?.createdAt ? formatDate(petData.createdAt.toDate()) : 'Unknown',
-              updatedAt: petData?.updatedAt ? formatDate(petData.updatedAt.toDate()) : 'Unknown'
+              createdAt: safeToDate(petData?.createdAt) ? formatDate(safeToDate(petData.createdAt)!) : 'Unknown',
+              updatedAt: safeToDate(petData?.updatedAt) ? formatDate(safeToDate(petData.updatedAt)!) : 'Unknown'
             } as PetDetails);
           } else {
             console.error('Pet document not found at path:', `users/${ownerId}/pets/${id}`);
@@ -193,8 +169,24 @@ export default function PatientDetail() {
 
   if (loading) {
     return (
-      <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={[styles.container, { padding: Spacing.lg }]}>
+        <View style={{ alignItems: 'center', marginBottom: Spacing.lg }}>
+          <Skeleton width={120} height={120} borderRadius={60} />
+          <Skeleton width={180} height={22} borderRadius={8} style={{ marginTop: Spacing.md }} />
+          <Skeleton width={140} height={16} borderRadius={8} style={{ marginTop: 6 }} />
+        </View>
+        {[1, 2, 3].map(i => (
+          <View key={i} style={{ borderWidth: 1, borderColor: currentColors.border, borderRadius: BorderRadius.lg, padding: Spacing.md, marginBottom: Spacing.md }}>
+            <Skeleton width={120} height={18} borderRadius={6} style={{ marginBottom: Spacing.sm }} />
+            {[1, 2, 3].map(j => (
+              <Skeleton key={j} width={j === 2 ? 160 : 220} height={14} borderRadius={6} style={{ marginTop: 6 }} />
+            ))}
+          </View>
+        ))}
+        <View style={{ flexDirection: 'row', gap: Spacing.md }}>
+          <Skeleton width={(Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2} height={48} borderRadius={BorderRadius.md} />
+          <Skeleton width={(Dimensions.get('window').width - Spacing.lg * 2 - Spacing.md) / 2} height={48} borderRadius={BorderRadius.md} />
+        </View>
       </View>
     );
   }
@@ -202,7 +194,7 @@ export default function PatientDetail() {
   if (error) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={{ color: theme.colors.error }}>{error}</Text>
+        <Text style={{ color: '#EF4444' }}>{error}</Text>
       </View>
     );
   }
@@ -225,85 +217,85 @@ export default function PatientDetail() {
     ownerName = 'Unknown',
     lastVisit = 'No visits yet',
     medicalHistory,
-    photoURL,
+    image,
     createdAt = 'Unknown',
     updatedAt = 'Unknown'
   } = pet;
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <ScrollView style={[styles.container, { backgroundColor: currentColors.background }]}>
       <View style={styles.header}>
-        {photoURL ? (
-          <Image source={{ uri: photoURL }} style={styles.petImage} />
+        {image ? (
+          <Image source={{ uri: image }} style={styles.petImage} />
         ) : (
-          <View style={[styles.petImage, { backgroundColor: theme.colors.primaryContainer }]}>
+          <View style={[styles.petImage, { backgroundColor: currentColors.surfaceVariant }]}>
             <MaterialCommunityIcons 
               name={type.toLowerCase() === 'dog' ? 'dog' : 'cat'} 
               size={60} 
-              color={theme.colors.onPrimaryContainer} 
+              color={currentColors.primary} 
             />
           </View>
         )}
-        <Text style={[styles.petName, { color: theme.colors.onBackground }]}>
+        <Text style={[styles.petName, { color: currentColors.text }]}>
           {name}
         </Text>
-        <Text style={{ color: theme.colors.onSurfaceVariant }}>
+        <Text style={{ color: currentColors.textSecondary }}>
           {type} • {breed}
         </Text>
       </View>
 
-      <View style={[styles.section, { borderColor: theme.colors.outline }]}>
-        <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>Pet Details</Text>
+      <View style={[styles.section, { borderColor: currentColors.border }]}>
+        <Text style={[styles.sectionTitle, { color: currentColors.primary }]}>Pet Details</Text>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Name:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{name}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Name:</Text>
+          <Text style={{ color: currentColors.text }}>{name}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Type:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{type}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Type:</Text>
+          <Text style={{ color: currentColors.text }}>{type}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Breed:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{breed}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Breed:</Text>
+          <Text style={{ color: currentColors.text }}>{breed}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Age:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{age} {age ? 'years' : ''}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Age:</Text>
+          <Text style={{ color: currentColors.text }}>{age} {age ? 'years' : ''}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Gender:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{gender}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Gender:</Text>
+          <Text style={{ color: currentColors.text }}>{gender}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Owner:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{ownerName}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Owner:</Text>
+          <Text style={{ color: currentColors.text }}>{ownerName}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Last Visit:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{lastVisit}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Last Visit:</Text>
+          <Text style={{ color: currentColors.text }}>{lastVisit}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Added on:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{createdAt}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Added on:</Text>
+          <Text style={{ color: currentColors.text }}>{createdAt}</Text>
         </View>
         
         <View style={styles.detailRow}>
-          <Text style={[styles.detailLabel, { color: theme.colors.onSurfaceVariant }]}>Last Updated:</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{updatedAt}</Text>
+          <Text style={[styles.detailLabel, { color: currentColors.textSecondary }]}>Last Updated:</Text>
+          <Text style={{ color: currentColors.text }}>{updatedAt}</Text>
         </View>
       </View>
 
-      <View style={[styles.section, { borderColor: theme.colors.outline, flexDirection: 'row', justifyContent: 'space-between' }]}>
+      <View style={[styles.section, { borderColor: currentColors.border, flexDirection: 'row', justifyContent: 'space-between' }]}>
         <TouchableOpacity 
-          style={[styles.actionButton, { backgroundColor: theme.colors.primary }]}
+          style={[styles.actionButton, { backgroundColor: currentColors.primary }]}
           onPress={() => {
             // Using the correct path format with object syntax
             router.push({
@@ -319,9 +311,9 @@ export default function PatientDetail() {
       </View>
 
       {medicalHistory && (
-        <View style={[styles.section, { borderColor: theme.colors.outline }]}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.primary }]}>Medical History</Text>
-          <Text style={{ color: theme.colors.onBackground }}>{medicalHistory}</Text>
+        <View style={[styles.section, { borderColor: currentColors.border }]}>
+          <Text style={[styles.sectionTitle, { color: currentColors.primary }]}>Medical History</Text>
+          <Text style={{ color: currentColors.text }}>{medicalHistory}</Text>
         </View>
       )}
     </ScrollView>

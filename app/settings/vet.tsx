@@ -9,14 +9,18 @@ import {
   TextInput,
   Alert,
   Switch,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { auth, db } from '@/services/firebase';
+import { uploadToCloudinary } from '@/services/cloudinary';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { updateEmail, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from 'firebase/auth';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors, Spacing, BorderRadius, FontSize, FontWeight, ThemeName, currentColors } from '@/constants/theme';
 import { resetTipsShownForSession } from '@/components/DailyTipsDialog';
+import * as ImagePicker from 'expo-image-picker';
 
 const themeOptions: { name: ThemeName; color: string; label: string }[] = [
   { name: 'blue', color: '#3B82F6', label: 'Blue' },
@@ -36,10 +40,12 @@ export default function VetSettings() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [imageUploading, setImageUploading] = useState(false);
   const [userData, setUserData] = useState<VetData | null>(null);
   const [notifications, setNotifications] = useState(true);
   
   const [name, setName] = useState('');
+  const [profileImage, setProfileImage] = useState('');
   const [email, setEmail] = useState('');
   const [specialization, setSpecialization] = useState('');
   const [clinicName, setClinicName] = useState('');
@@ -65,10 +71,11 @@ export default function VetSettings() {
 
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        const userDataVal = userDoc.data() as VetData & { theme?: ThemeName };
+        const userDataVal = userDoc.data() as VetData & { theme?: ThemeName; profileImage?: string };
         setUserData(userDataVal as VetData);
         setName(userDataVal.name || '');
         setEmail(userDataVal.email || '');
+        if (userDataVal.profileImage) setProfileImage(userDataVal.profileImage);
         if (userDataVal.theme && ['blue', 'green', 'purple'].includes(userDataVal.theme)) {
           setSelectedTheme(userDataVal.theme);
         }
@@ -85,6 +92,38 @@ export default function VetSettings() {
       console.error('Error loading user data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangeProfilePhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Gallery permission is required');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    setImageUploading(true);
+    try {
+      const cloudinaryUrl = await uploadToCloudinary(result.assets[0].uri);
+      const user = auth.currentUser;
+      if (user) {
+        await updateDoc(doc(db, 'users', user.uid), { profileImage: cloudinaryUrl });
+        setProfileImage(cloudinaryUrl);
+      }
+      Alert.alert('Success', 'Profile photo updated');
+    } catch (error) {
+      console.error('Error uploading profile image:', error);
+      Alert.alert('Error', 'Failed to upload image');
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -212,6 +251,27 @@ export default function VetSettings() {
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Settings</Text>
           <View style={styles.placeholder} />
+        </View>
+
+        <View style={styles.avatarSection}>
+          <TouchableOpacity onPress={handleChangeProfilePhoto} disabled={imageUploading} style={styles.avatarWrapper}>
+            {imageUploading ? (
+              <View style={[styles.avatar, { backgroundColor: currentColors.surfaceVariant }]}>
+                <ActivityIndicator size="large" color={currentColors.primary} />
+              </View>
+            ) : profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: currentColors.surfaceVariant }]}>
+                <MaterialCommunityIcons name="account" size={48} color={currentColors.textSecondary} />
+              </View>
+            )}
+            <View style={styles.avatarBadge}>
+              <MaterialCommunityIcons name="camera" size={16} color="#FFF" />
+            </View>
+          </TouchableOpacity>
+          <Text style={styles.avatarName}>{userData?.name}</Text>
+          <Text style={styles.avatarEmail}>{userData?.email}</Text>
         </View>
 
         <View style={styles.section}>
@@ -493,6 +553,45 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: Spacing.md,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: currentColors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: currentColors.background,
+  },
+  avatarName: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.bold,
+    color: currentColors.text,
+  },
+  avatarEmail: {
+    fontSize: FontSize.md,
+    color: currentColors.textSecondary,
+    marginTop: 2,
   },
   section: {
     paddingHorizontal: Spacing.lg,

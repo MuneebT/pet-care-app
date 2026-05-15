@@ -1119,7 +1119,19 @@ const API_BASE_URL = "https://pet-care-apis.onrender.com";
 
 interface PredictionResult {
   predicted_disease: string;
+  saved_diseases: string[];
   confidence: number;
+  confidenceLabel: string;
+  animal_type?: string;
+  top_predictions: Array<{
+    disease: string;
+    probability: number;
+    confidence: string;
+  }>;
+  all_probabilities: Array<{
+    disease: string;
+    probability: number;
+  }>;
   recommendations: string[];
   severity: string;
 }
@@ -1266,19 +1278,60 @@ const Symptomchecker = () => {
 
       const response = await axios.post(endpoint, payload, {
         headers: { "Content-Type": "application/json" },
-        timeout: 30000,
+        timeout: 120000,
       });
 
       const apiData = response.data;
       console.log("API Response:", JSON.stringify(apiData, null, 2));
 
-      const rawConfidence = apiData.confidence ?? 0;
+      const topPredictions = Array.isArray(apiData.top_predictions)
+        ? apiData.top_predictions
+        : [];
+      const topPrediction = topPredictions[0];
+      const secondPrediction = topPredictions[1];
+      const rawConfidence =
+        topPrediction?.probability ??
+        apiData.confidence ??
+        0;
       const normalizedConfidence =
         rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
+      const predictedDisease =
+        topPrediction?.disease ||
+        apiData.predicted_disease ||
+        apiData.prediction ||
+        "Unknown";
+      const firstConfidencePercent =
+        (topPrediction?.probability ?? rawConfidence) * 100;
+      const secondConfidencePercent =
+        (secondPrediction?.probability ?? 0) * 100;
+      const shouldStoreSecondDisease =
+        !!secondPrediction &&
+        Math.abs(firstConfidencePercent - secondConfidencePercent) <= 5;
+      const savedDiseases = shouldStoreSecondDisease
+        ? [predictedDisease, secondPrediction.disease]
+        : [predictedDisease];
 
       const mappedResult: PredictionResult = {
-        predicted_disease: apiData.prediction || apiData.predicted_disease || "Unknown",
+        predicted_disease: predictedDisease,
+        saved_diseases: savedDiseases,
         confidence: normalizedConfidence,
+        confidenceLabel:
+          topPrediction?.confidence || `${normalizedConfidence.toFixed(2)}%`,
+        animal_type: apiData.animal_type,
+        top_predictions: topPredictions,
+        all_probabilities: Array.isArray(apiData.all_probabilities)
+          ? apiData.all_probabilities
+              .filter(
+                (entry: unknown): entry is [string, number] =>
+                  Array.isArray(entry) &&
+                  typeof entry[0] === "string" &&
+                  typeof entry[1] === "number",
+              )
+              .map(([disease, probability]: [string, number]) => ({
+                disease,
+                probability,
+              }))
+          : [],
         recommendations: apiData.data?.recommendations || [
           "Consult with a veterinarian for proper diagnosis",
           "Monitor your pet's symptoms closely",
@@ -1307,8 +1360,18 @@ const Symptomchecker = () => {
             coughing,
             laboredBreathing,
           },
-          prediction: mappedResult.predicted_disease,
+          prediction: mappedResult.saved_diseases.join(" / "),
+          primaryPrediction: mappedResult.predicted_disease,
+          savedDiseases: mappedResult.saved_diseases,
           confidence: mappedResult.confidence,
+          confidenceLabel: mappedResult.confidenceLabel,
+          topPrediction: {
+            disease: mappedResult.predicted_disease,
+            probability: rawConfidence,
+            confidence: mappedResult.confidenceLabel,
+          },
+          topPredictions: mappedResult.top_predictions,
+          allProbabilities: mappedResult.all_probabilities,
           severity: mappedResult.severity,
           recommendations: mappedResult.recommendations,
           source: "symptomchecker",
@@ -1816,55 +1879,68 @@ const Symptomchecker = () => {
                       { color: currentColors.textSecondary },
                     ]}
                   >
-                    Predicted Disease
+                    Top Predictions
                   </Text>
-                  <Text
-                    style={[styles.resultValue, { color: currentColors.text }]}
-                  >
-                    {result.predicted_disease}
-                  </Text>
-                </View>
+                  {result.top_predictions.map((prediction, index) => {
+                    const confidencePercent = prediction.probability * 100;
+                    const isPrimary = index === 0;
 
-                <View style={styles.resultSection}>
-                  <Text
-                    style={[
-                      styles.resultLabel,
-                      { color: currentColors.textSecondary },
-                    ]}
-                  >
-                    Confidence
-                  </Text>
-                  <View style={styles.confidenceContainer}>
-                    <View
-                      style={[
-                        styles.confidenceBar,
-                        { backgroundColor: currentColors.surfaceVariant },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.confidenceFill,
-                          {
-                            width: `${result.confidence}%`,
-                            backgroundColor:
-                              result.confidence > 70
-                                ? currentColors.success
-                                : result.confidence > 40
-                                  ? currentColors.warning
-                                  : currentColors.error,
-                          },
-                        ]}
-                      />
-                    </View>
+                    return (
+                      <View key={`${prediction.disease}-${index}`} style={styles.topPredictionItem}>
+                        <View style={styles.topPredictionHeader}>
+                          <Text
+                            style={[
+                              styles.topPredictionName,
+                              { color: currentColors.text },
+                            ]}
+                          >
+                            {index + 1}. {prediction.disease}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.topPredictionConfidence,
+                              {
+                                color: isPrimary
+                                  ? currentColors.primary
+                                  : currentColors.textSecondary,
+                              },
+                            ]}
+                          >
+                            {prediction.confidence}
+                          </Text>
+                        </View>
+                        <View
+                          style={[
+                            styles.confidenceBar,
+                            styles.topPredictionBar,
+                            { backgroundColor: currentColors.surfaceVariant },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.confidenceFill,
+                              {
+                                width: `${confidencePercent}%`,
+                                backgroundColor: isPrimary
+                                  ? currentColors.primary
+                                  : currentColors.secondary,
+                              },
+                            ]}
+                          />
+                        </View>
+                      </View>
+                    );
+                  })}
+                  {result.saved_diseases.length > 1 && (
                     <Text
                       style={[
-                        styles.confidenceText,
-                        { color: currentColors.text },
+                        styles.savedDiseasesNote,
+                        { color: currentColors.textSecondary },
                       ]}
                     >
-                      {result.confidence.toFixed(1)}%
+                      Saved for this record: {result.saved_diseases.join(" and ")}
                     </Text>
-                  </View>
+                  )}
                 </View>
 
                 <View style={styles.resultSection}>
@@ -2233,6 +2309,33 @@ const styles = StyleSheet.create({
     minWidth: 50,
     textAlign: "right",
   },
+  topPredictionItem: {
+    marginBottom: Spacing.md,
+  },
+  topPredictionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: Spacing.xs,
+    gap: Spacing.sm,
+  },
+  topPredictionName: {
+    flex: 1,
+    fontSize: FontSize.md,
+    fontWeight: FontWeight.semibold,
+  },
+  topPredictionConfidence: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+  },
+  topPredictionBar: {
+    marginRight: 0,
+  },
+  savedDiseasesNote: {
+    fontSize: FontSize.sm,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+  },
   severityChip: {
     alignSelf: "flex-start",
   },
@@ -2264,9 +2367,11 @@ const styles = StyleSheet.create({
   },
   bottomNavContainer: {
     position: 'absolute',
+    top: 0,
     bottom: 0,
     left: 0,
     right: 0,
+    pointerEvents: 'box-none',
   },
 });
 
